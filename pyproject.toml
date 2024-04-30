@@ -1,0 +1,16 @@
+[tool.poetry]
+name = "ba"
+version = "0.1.0"
+description = ""
+authors = ["Kilian Bartz"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+pytorch-metric-learning = "^2.4.1"
+safetensors = "^0.4.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
