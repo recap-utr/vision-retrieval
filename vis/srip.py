@@ -118,6 +118,10 @@ def _select_color(node, config, idx):
         return config.support_colors[idx % 3]
 
 
+def default_weight(x: Node | list[Node]):
+    return 1 if isinstance(x, Node) else len(x)
+
+
 def SRIP1(
     r: Node, graph: ab.Graph, path: Path, config: SRIP_Config = SRIP_Config()
 ) -> None:
@@ -143,6 +147,7 @@ def SRIP1(
     if len(r.children) > 0:
         _SRIP1_r(1, [r], len(r.children), config.W, h, config, ax)
     plt.savefig(path, bbox_inches=0, pad_inches=0, dpi=config.dpi)
+    plt.close()
 
 
 def _SRIP1_r(
@@ -212,6 +217,7 @@ def SRIP2(
             1, [r], len(C), weight_func(C), config.W, 0, h, weight_func, config, ax
         )
     plt.savefig(path, bbox_inches=0, pad_inches=0, dpi=config.dpi)
+    plt.close()
 
 
 def _SRIP2_r(
