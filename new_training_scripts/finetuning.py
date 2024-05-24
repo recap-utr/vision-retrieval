@@ -5,17 +5,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data as data
-from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint
+from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
 from torchvision import transforms
 from datasets import load_dataset
 import wandb
-from new_training_scripts.pretraining import Autoencoder
-from transformers import AutoImageProcessor
+from transformers import AutoImageProcessor, AutoModel
+from lightning.pytorch.loggers import WandbLogger
 
 
-BASEMODEL = "microsoft/swinv2-tiny-patch4-window8-256"
-processor = AutoImageProcessor.from_pretrained(BASEMODEL)
-EPOCHS = 100
+PROJECT = "VisionRetrievalFineTuning"
 
 
 class SimCLR(L.LightningModule):
@@ -28,27 +26,23 @@ class SimCLR(L.LightningModule):
         basemodel: str,
         checkpoint: str,
         dataset: str,
-        revision: str,
+        latent_dim: int,
         max_epochs=500,
         pretrained_model=None,
     ):
         super().__init__()
-        self.save_hyperparameters()
+        self.save_hyperparameters(ignore=['pretrained_model'])
         assert (
             self.hparams.temperature > 0.0
         ), "The temperature must be a positive float!"
         # Base model f(.)
         if pretrained_model is None:
-            from transformers import AutoModel, AutoImageProcessor
-
-            ae = Autoencoder.load_from_checkpoint(checkpoint)
-            processor = AutoImageProcessor.from_pretrained(BASEMODEL)
-            self.model = ae.encoder
+            raise ValueError("Pretrained model must be provided!")
         else:
             self.model = pretrained_model
         # The MLP for g(.) consists of Linear->ReLU->Linear
         self.mlp = nn.Sequential(
-            nn.Linear(768, 4 * hidden_dim),
+            nn.Linear(latent_dim, 4 * hidden_dim),
             nn.ReLU(),
             nn.Linear(4 * hidden_dim, hidden_dim),
         )
@@ -85,7 +79,7 @@ class SimCLR(L.LightningModule):
         nll = nll.mean()
 
         # Logging loss
-        self.log(mode + "_loss", nll)
+        self.log(mode + "_loss", nll, sync_dist=True)
         # Get ranking position of positive example
         comb_sim = torch.cat(
             [
@@ -96,9 +90,9 @@ class SimCLR(L.LightningModule):
         )
         sim_argsort = comb_sim.argsort(dim=-1, descending=True).argmin(dim=-1)
         # Logging ranking metrics
-        self.log(mode + "_acc_top1", (sim_argsort == 0).float().mean())
-        self.log(mode + "_acc_top5", (sim_argsort < 5).float().mean())
-        self.log(mode + "_acc_mean_pos", 1 + sim_argsort.float().mean())
+        self.log(mode + "_acc_top1", (sim_argsort == 0).float().mean(), sync_dist=True)
+        self.log(mode + "_acc_top5", (sim_argsort < 5).float().mean(), sync_dist=True)
+        self.log(mode + "_acc_mean_pos", 1 + sim_argsort.float().mean(), sync_dist=True)
 
         return nll
 
@@ -109,18 +103,13 @@ class SimCLR(L.LightningModule):
         self.info_nce_loss(batch, mode="val")
 
 
-def main(checkpoint_path, dataset_name, revision=None):
+def main(model, batch_size, latent_dim, epochs, checkpoint_path, dataset_name):
 
-    # Path to the folder where the pretrained models are saved
-    CHECKPOINT_PATH = os.environ.get(
-        "PATH_CHECKPOINT", "saved_models/SimCLR_Treemap_SAT/"
-    )
+    processor = AutoImageProcessor.from_pretrained(model)
+    vis = dataset_name.split("/")[-1]
     # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
     # workers as possible in a data loader, which corresponds to the number of CPU cores
-    NUM_WORKERS = os.cpu_count()
-
-    BASEMODEL = "microsoft/swinv2-tiny-patch4-window8-256"
-    BATCH_SIZE = 64
+    NUM_WORKERS = 30
 
     # Setting the seed
     L.seed_everything(42)
@@ -130,7 +119,7 @@ def main(checkpoint_path, dataset_name, revision=None):
     torch.backends.cudnn.benchmark = False
 
     device = (
-        torch.device("cuda:0") if torch.cuda.is_available() else torch.device("cpu")
+        torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     )
     print("Device:", device)
     print("Number of workers:", NUM_WORKERS)
@@ -164,10 +153,7 @@ def main(checkpoint_path, dataset_name, revision=None):
         ]
         return examples
 
-    if revision == None:
-        ds = load_dataset(dataset_name)
-    else:
-        ds = load_dataset(dataset_name, revision=revision)
+    ds = load_dataset(dataset_name)
     ds.set_transform(apply_transforms)
     # generate test split if not present
     if "test" not in ds:
@@ -179,78 +165,62 @@ def main(checkpoint_path, dataset_name, revision=None):
         [torch.Tensor(x["pixel_values"]) for x in batch]
     )
 
-    from lightning.pytorch.loggers import WandbLogger
 
-    wandb_logger = WandbLogger(project="FinetuneAllNew", log_model=True)
+    wandb_logger = WandbLogger(project=PROJECT, log_model=True)
 
     def train_simclr(batch_size, max_epochs=500, **kwargs):
+        checkpoint_callback = ModelCheckpoint(dirpath=f"/home/s4kibart/vision-retrieval/{PROJECT}/{vis}/checkpoints", save_top_k=2, monitor="val_loss")
         trainer = L.Trainer(
-            default_root_dir=os.path.join(CHECKPOINT_PATH, "SimCLR"),
+            default_root_dir=f"/home/s4kibart/vision-retrieval/{PROJECT}/{vis}",
             accelerator="auto",
-            devices=1,
-            max_epochs=max_epochs,
+            devices="auto",
+            strategy="auto",
+            max_epochs=epochs,
+            # precision="16-mixed",
             callbacks=[
-                ModelCheckpoint(
-                    save_weights_only=True, mode="max", monitor="val_acc_top5"
-                ),
+                checkpoint_callback,
+                #GenerateCallback(get_train_images(8), every_n_epochs=10),
                 LearningRateMonitor("epoch"),
+                EarlyStopping(monitor="val_loss", patience=3, mode="min", min_delta=0.2, verbose=True)
             ],
             logger=wandb_logger,
-            log_every_n_steps=16,
-        )
-        trainer.logger._default_hp_metric = (
-            None  # Optional logging argument that we don't need
         )
 
-        # Check whether pretrained model exists. If yes, load it and skip training
-        pretrained_filename = os.path.join(CHECKPOINT_PATH, "SimCLR.ckpt")
-        if os.path.isfile(pretrained_filename):
-            print(f"Found pretrained model at {pretrained_filename}, loading...")
-            # Automatically loads the model with the saved hyperparameters
-            model = SimCLR.load_from_checkpoint(pretrained_filename)
-        else:
-            train_loader = data.DataLoader(
-                unlabeled_data,
-                batch_size=batch_size,
-                shuffle=True,
-                drop_last=True,
-                pin_memory=True,
-                num_workers=30,
-                collate_fn=coalate_fn,
-            )
-            val_loader = data.DataLoader(
-                train_data_contrast,
-                batch_size=batch_size,
-                shuffle=False,
-                drop_last=False,
-                pin_memory=True,
-                num_workers=30,
-                collate_fn=coalate_fn,
-            )
-            L.seed_everything(42)  # To be reproducible
-            model = SimCLR(max_epochs=max_epochs, **kwargs)
-            trainer.fit(model, train_loader, val_loader)
-            # Load best checkpoint after training
-            model = SimCLR.load_from_checkpoint(
-                trainer.checkpoint_callback.best_model_path
-            )
+        train_loader = data.DataLoader(
+            unlabeled_data,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=True,
+            pin_memory=True,
+            num_workers=30,
+            collate_fn=coalate_fn,
+        )
+        val_loader = data.DataLoader(
+            train_data_contrast,
+            batch_size=batch_size,
+            shuffle=False,
+            drop_last=False,
+            pin_memory=True,
+            num_workers=30,
+            collate_fn=coalate_fn,
+        )
+        L.seed_everything(42)  # To be reproducible
+        pretrained_model = AutoModel.from_pretrained(checkpoint_path)
+        model = SimCLR(max_epochs=max_epochs, pretrained_model=pretrained_model, latent_dim=latent_dim, **kwargs)
+        trainer.fit(model, train_loader, val_loader)
 
-        return model
-
-    simclr_model = train_simclr(
-        batch_size=64,
+    train_simclr(
+        batch_size=batch_size,
         hidden_dim=64,
         lr=5e-4,
         temperature=0.07,
         weight_decay=1e-4,
-        max_epochs=EPOCHS,
-        basemodel=BASEMODEL,
+        max_epochs=epochs,
+        basemodel=model,
         checkpoint=checkpoint_path,
         dataset=dataset_name,
-        revision=revision,
     )
     wandb.finish()
 
-
 if __name__ == "__main__":
-    main("../saved_models/PretrainAllNew/treemap_sat.ckpt", "kblw/graphviz_treemap")
+    pass

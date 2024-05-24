@@ -1,16 +1,15 @@
-from ft_simclr_pl_treemap_sat import main
+from finetuning import main
+
+BATCH_SIZE = 16
+LATENT_DIM = 1536
+MODEL = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft"
+MAX_EPOCHS = 500
 
 datasets = [
-    ("../saved_models/PretrainAllNew/dot_layout.ckpt", "kblw/graphimages_dot"), 
-            ("../saved_models/PretrainAllNew/new/twopi_layout_v2.ckpt", 
-            "kblw/graphimages_twopi"),
-              ("../saved_models/PretrainAllNew/new/treemap_weak_v3.ckpt", "kblw/treemap_weak_ft"), 
-              ("../saved_models/PretrainAllNew/new/treemap_sat_v4.ckpt", "kblw/treemap_sat_ft")
+    (MODEL, BATCH_SIZE, LATENT_DIM, MAX_EPOCHS, "VisionRetrievalPretraining/logical_pt_extended/logical_best", "kblw/logical_ft_arg"), 
+    (MODEL, BATCH_SIZE, LATENT_DIM, MAX_EPOCHS, "VisionRetrievalPretraining/srip_pt_extended/srip_best", "kblw/srip_ft_arg"), 
             ]
 
 if __name__ == "__main__":
     for entry in datasets:
-        if len(entry) == 3:
-            main(entry[0], entry[1], revision=entry[2])
-        else:
-            main(entry[0], entry[1])
+        main(*entry)
