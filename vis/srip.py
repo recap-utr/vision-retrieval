@@ -217,7 +217,7 @@ def SRIP2(
             1, [r], len(C), weight_func(C), config.W, 0, h, weight_func, config, ax
         )
     plt.savefig(path, bbox_inches=0, pad_inches=0, dpi=config.dpi)
-    plt.close()
+    plt.close("all")
 
 
 def _SRIP2_r(

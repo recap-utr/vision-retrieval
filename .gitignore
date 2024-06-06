@@ -29,3 +29,5 @@ graphimages_twopi_model/
 **/__pycache__/
 *.csv
 evaluate_cbr/results/
+data/graphs/
+*.json

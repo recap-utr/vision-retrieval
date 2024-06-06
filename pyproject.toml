@@ -9,6 +9,10 @@ readme = "README.md"
 python = "^3.10"
 pytorch-metric-learning = "^2.4.1"
 safetensors = "^0.4.1"
+plotly = "^5.22.0"
+datasets = "^2.19.1"
+matplotlib = "^3.9.0"
+arguebuf = "^2.5.2"
 
 
 [build-system]

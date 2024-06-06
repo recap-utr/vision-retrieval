@@ -1,6 +1,4 @@
-from logical import NodeWrapper, render
-from srip import SRIP2, convert_from_AbstractNode_to_Node, default_weight
-from util import find_major_claim
+from make_treemap_Snodes import visualize_treemap, standard_resize
 import arguebuf as ab
 from glob import glob
 from tqdm import tqdm
@@ -24,25 +22,16 @@ dataset_dict = {
 
 
 base_path = "../data"
-target_dir = f"{base_path}/arg_finetune_logical_srip"
-srip_dir = f"{target_dir}/srip2/train"
-logical_dir = f"{target_dir}/logical/train"
-os.makedirs(srip_dir, exist_ok=True)
-os.makedirs(logical_dir, exist_ok=True)
+target_dir = f"{base_path}/arg_finetune_treemaps"
+os.makedirs(target_dir, exist_ok=True)
 
 
 def process_dataset(name, ext):
     for file in tqdm(glob(f"{base_path}/graphs/{name}/*.{ext}")):
         try:
-            graph = ab.load.file(file)
-            mj = find_major_claim(graph)
-            root_srip = convert_from_AbstractNode_to_Node(graph, mj)
-            path = Path(f"{srip_dir}/{name}-{file.split('/')[-1].replace(ext, 'png')}")
-            SRIP2(root_srip, graph, path, default_weight)
-            path = Path(
-                f"{logical_dir}/{name}-{file.split('/')[-1].replace(ext, 'png')}"
-            )
-            render(graph, path)
+            path = f"{target_dir}/{name}-{file.split('/')[-1].replace(ext, 'png')}"
+            visualize_treemap(file, path)
+            standard_resize(path)
         except Exception as e:
             print("error processing", file)
             print(e)

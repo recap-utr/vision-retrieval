@@ -22,8 +22,8 @@ def normalize(graph: ab.Graph) -> None:
 def find_major_claim(graph: ab.Graph) -> ab.AbstractNode:
     if graph.major_claim:
         return graph.major_claim
-    mj = [n for n in graph.nodes if len(graph.outgoing_nodes(n)) == 0][0]
-    return graph.nodes[mj]
+    mj = [n for n in graph.atom_nodes.values() if len(graph.outgoing_nodes(n)) == 0]
+    return mj[0]
 
 
 def layerize(
