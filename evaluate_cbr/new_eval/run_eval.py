@@ -289,21 +289,22 @@ if __name__ == "__main__":
     BASE_MODEL = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft"
 
     res = {}
-    for model in model_names:
-        embedd = embedding_func(MODEL_BASEPATH + model, BASE_MODEL)
-        model_type = model.split("_")[0]
-        results = run_eval(
-            "/home/kilian/vision-retrieval/data/retrieval_queries/microtexts-retrieval-simple/*.json",
-            "/home/kilian/vision-retrieval/data/graphs/microtexts/*.json",
-            "/home/kilian/vision-retrieval/evaluate_cbr/eval.json",
-            embedd,
-            lambda x: f"/home/kilian/vision-retrieval/data/eval_all/microtexts-retrieval-simple/{model_type}/"
-            + x.split("/")[-1].split(".")[0]
-            + ".png",
-            lambda x: f"/home/kilian/vision-retrieval/data/eval_all/casebase/{model_type}/"
-            + x.split("/")[-1].split(".")[0]
-            + ".png",
-        )
-        res[model] = results
-    df = pd.DataFrame(res)
-    df.to_csv("results.csv")
+    for t in ["simple", "complex"]:
+        for model in model_names:
+            embedd = embedding_func(MODEL_BASEPATH + model, BASE_MODEL)
+            model_type = model.split("_")[0]
+            results = run_eval(
+                f"/home/kilian/vision-retrieval/data/retrieval_queries/microtexts-retrieval-{t}/*.json",
+                f"/home/kilian/vision-retrieval/data/graphs/microtexts/*.json",
+                f"/home/kilian/vision-retrieval/evaluate_cbr/mac_{t}.json",
+                embedd,
+                lambda x: f"/home/kilian/vision-retrieval/data/eval_all/microtexts-retrieval-{t}/{model_type}/"
+                + x.split("/")[-1].split(".")[0]
+                + ".png",
+                lambda x: f"/home/kilian/vision-retrieval/data/eval_all/casebase/{model_type}/"
+                + x.split("/")[-1].split(".")[0]
+                + ".png",
+            )
+            res[model] = results
+        df = pd.DataFrame(res)
+        df.to_csv(f"results_{t}.csv")
