@@ -8,6 +8,7 @@ from transformers import AutoModel, AutoImageProcessor
 from PIL import Image
 from tqdm import tqdm
 import pandas as pd
+from time import time
 
 # TODO: fix queries (currently none found), run, eval results
 
@@ -264,14 +265,18 @@ def run_eval(
     # mac_results = simulate_mac_phase(list(queries.values()))
     print("Processed ground truths and mac_results")
     casebase_files = glob(casebase_path_glob)
+    start = time()
     casebase = {
         standard_file_name(q): ImageEmbeddingGraph(
             q, casebase_mapping(q), embedding_func, name=standard_file_name(q)
         )
         for q in tqdm(casebase_files)
     }
-    print("Processed casebase. Starting eval...")
-    ev = Evaluation(casebase, ground_truths, mac_results, list(queries.values()))
+    print(f"Processed {len(casebase)} casebase files in {time()-start} seconds")
+    print("Starting eval...")
+    ev = Evaluation(
+        casebase, ground_truths, mac_results, list(queries.values()), times=True
+    )
     return ev.as_dict()
 
 
@@ -289,22 +294,24 @@ if __name__ == "__main__":
     BASE_MODEL = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft"
 
     res = {}
-    for t in ["simple", "complex"]:
-        for model in model_names:
-            embedd = embedding_func(MODEL_BASEPATH + model, BASE_MODEL)
-            model_type = model.split("_")[0]
-            results = run_eval(
-                f"/home/kilian/vision-retrieval/data/retrieval_queries/microtexts-retrieval-{t}/*.json",
-                f"/home/kilian/vision-retrieval/data/graphs/microtexts/*.json",
-                f"/home/kilian/vision-retrieval/evaluate_cbr/mac_{t}.json",
-                embedd,
-                lambda x: f"/home/kilian/vision-retrieval/data/eval_all/microtexts-retrieval-{t}/{model_type}/"
-                + x.split("/")[-1].split(".")[0]
-                + ".png",
-                lambda x: f"/home/kilian/vision-retrieval/data/eval_all/casebase/{model_type}/"
-                + x.split("/")[-1].split(".")[0]
-                + ".png",
-            )
-            res[model] = results
-        df = pd.DataFrame(res)
-        df.to_csv(f"results_{t}.csv")
+    for run in range(5):
+        for t in ["simple", "complex"]:
+            for model in model_names:
+                print(f"Running {model} on {t}...")
+                embedd = embedding_func(MODEL_BASEPATH + model, BASE_MODEL)
+                model_type = model.split("_")[0]
+                results = run_eval(
+                    f"/home/kilian/vision-retrieval/data/retrieval_queries/microtexts-retrieval-{t}/*.json",
+                    f"/home/kilian/vision-retrieval/data/graphs/microtexts/*.json",
+                    f"/home/kilian/vision-retrieval/evaluate_cbr/mac_{t}.json",
+                    embedd,
+                    lambda x: f"/home/kilian/vision-retrieval/data/eval_all/microtexts-retrieval-{t}/{model_type}/"
+                    + x.split("/")[-1].split(".")[0]
+                    + ".png",
+                    lambda x: f"/home/kilian/vision-retrieval/data/eval_all/casebase/{model_type}/"
+                    + x.split("/")[-1].split(".")[0]
+                    + ".png",
+                )
+                res[model] = results
+            df = pd.DataFrame(res)
+            df.to_csv(f"results_{t}_{run}.csv")
