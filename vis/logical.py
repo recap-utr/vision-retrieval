@@ -85,4 +85,4 @@ def render(graph: ab.Graph, path: Path, normalize_graph=True, dpi=50) -> None:
     # remove white border
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.savefig(path, bbox_inches=0, pad_inches=0, dpi=dpi)
-    plt.close()
+    plt.close("all")
