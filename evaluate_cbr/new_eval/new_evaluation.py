@@ -6,6 +6,7 @@ from model import ImageEmbeddingGraph
 from ranx import Run, Qrels, evaluate
 import statistics
 from time import time
+from correctness_completeness import _correctness_completeness_single
 
 
 class Evaluation:
@@ -85,71 +86,14 @@ class Evaluation:
             return_mean=False,
         )
 
-    def _correctness_completeness(self, query) -> tuple[float, float]:
-        key = query.name
-        if self.debug:
-            print(key)
-        qrel = self.qrels[key]
-
-        # The following produces a ranking in retrieval order (most similar result is shown first):
-        # most similar doc --> 1
-        # second most similar doc --> 2
-        # ...
-        sorted_run = sorted(self.run[key].items(), key=lambda x: x[1], reverse=True)
-        if self.debug:
-            print(sorted_run)
-        run_ranking = {x[0]: i + 1 for i, x in enumerate(sorted_run)}
-
-        orders = 0
-        concordances = 0
-        disconcordances = 0
-
-        correctness = 1
-        completeness = 1
-
-        for user_key_1, user_rank_1 in qrel.items():
-            for user_key_2, user_rank_2 in qrel.items():
-                if user_key_1 != user_key_2 and user_rank_1 > user_rank_2:
-                    orders += 1
-
-                    system_rank_1 = run_ranking.get(user_key_1)
-                    system_rank_2 = run_ranking.get(user_key_2)
-
-                    # if rel(doc1) > rel(doc2) then the following should hold for concordance:
-                    # similiarity(doc1) > similiarity(doc2) and rank(doc1) < rank(doc2)
-                    if system_rank_1 is not None and system_rank_2 is not None:
-                        if system_rank_1 < system_rank_2:
-                            concordances += 1
-                        elif system_rank_1 > system_rank_2:
-                            disconcordances += 1
-
-        if concordances + disconcordances > 0:
-            correctness = (concordances - disconcordances) / (
-                concordances + disconcordances
-            )
-        if orders > 0:
-            completeness = (concordances + disconcordances) / orders
-        if self.debug:
-            print(
-                "orders",
-                orders,
-                "concordances",
-                concordances,
-                "disconcordances",
-                disconcordances,
-                "correctness",
-                correctness,
-                "completeness",
-                completeness,
-            )
-
-        return correctness, completeness
+    
 
     def as_dict(self):
         results = self.run.mean_scores
         correctness, completeness = [], []
         for query in self.queries:
-            corr, comp = self._correctness_completeness(query)
+            corr, comp = _correctness_completeness_single(
+                self.qrels[query.name], self.run[query.name], self.k)
             correctness.append(corr)
             completeness.append(comp)
         results["correctness"] = statistics.mean(correctness)

@@ -13,7 +13,17 @@ plotly = "^5.22.0"
 datasets = "^2.19.1"
 matplotlib = "^3.9.0"
 arguebuf = "^2.5.2"
+jsonlines = "^4.0.0"
+torch = "^2.5.0"
+lightning = "^2.4.0"
+transformers = "^4.45.2"
+torchvision = "^0.20.0"
+python-dotenv = "^1.0.1"
+openai = "^1.54.4"
 
+
+[tool.poetry.group.dev.dependencies]
+jupyter = "^1.1.1"
 
 [build-system]
 requires = ["poetry-core"]
