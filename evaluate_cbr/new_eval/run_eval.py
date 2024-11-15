@@ -275,14 +275,13 @@ def run_eval(
     print(f"Processed {len(casebase)} casebase files in {time()-start} seconds")
     print("Starting eval...")
     ev = Evaluation(
-        casebase, ground_truths, mac_results, list(queries.values()), times=True
+        casebase, ground_truths, mac_results, list(queries.values()), times=False
     )
     return ev.as_dict()
 
 
 if __name__ == "__main__":
-
-    MODEL_BASEPATH = "/home/kilian/vision-retrieval/models/"
+    MODEL_BASEPATH = "/home/s4kibart/vision-retrieval/vis_models/"
     model_names = [
         "logical_ft_arg",
         "logical_pt",
@@ -294,24 +293,31 @@ if __name__ == "__main__":
     BASE_MODEL = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft"
 
     res = {}
-    for run in range(5):
+    for run in range(1):
         for t in ["simple", "complex"]:
             for model in model_names:
                 print(f"Running {model} on {t}...")
                 embedd = embedding_func(MODEL_BASEPATH + model, BASE_MODEL)
                 model_type = model.split("_")[0]
                 results = run_eval(
-                    f"/home/kilian/vision-retrieval/data/retrieval_queries/microtexts-retrieval-{t}/*.json",
-                    f"/home/kilian/vision-retrieval/data/graphs/microtexts/*.json",
-                    f"/home/kilian/vision-retrieval/evaluate_cbr/mac_{t}.json",
+                    f"/home/s4kibart/vision-retrieval/data/retrieval_queries/microtexts-retrieval-{t}/*.json",
+                    "/home/s4kibart/vision-retrieval/data/graphs/microtexts/*.json",
+                    f"/home/s4kibart/vision-retrieval/data/eval_all/mac_{t}.json",
                     embedd,
-                    lambda x: f"/home/kilian/vision-retrieval/data/eval_all/microtexts-retrieval-{t}/{model_type}/"
+                    lambda x: f"/home/s4kibart/vision-retrieval/data/eval_all/microtexts-retrieval-{t}/{model_type}/"
                     + x.split("/")[-1].split(".")[0]
                     + ".png",
-                    lambda x: f"/home/kilian/vision-retrieval/data/eval_all/casebase/{model_type}/"
+                    lambda x: f"/home/s4kibart/vision-retrieval/data/eval_all/casebase/{model_type}/"
                     + x.split("/")[-1].split(".")[0]
                     + ".png",
                 )
                 res[model] = results
-            df = pd.DataFrame(res)
-            df.to_csv(f"results_{t}_{run}.csv")
+            # df = pd.DataFrame(res)
+            # df.to_csv(
+            #     f"/home/s4kibart/vision-retrieval/data/eval_all/results/torch_models/results_{t}_{run}.csv"
+            # )
+            with open(
+                f"/home/s4kibart/vision-retrieval/data/eval_all/results/torch_models/results_{t}_{run}.json",
+                "w",
+            ) as f:
+                json.dump(res, f)

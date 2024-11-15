@@ -86,14 +86,15 @@ class Evaluation:
             return_mean=False,
         )
 
-    
-
     def as_dict(self):
         results = self.run.mean_scores
         correctness, completeness = [], []
         for query in self.queries:
             corr, comp = _correctness_completeness_single(
-                self.qrels[query.name], self.run[query.name], self.k)
+                self.qrels[query.name],
+                self.run[query.name],
+                None if self.k == 0 else self.k,
+            )
             correctness.append(corr)
             completeness.append(comp)
         results["correctness"] = statistics.mean(correctness)
