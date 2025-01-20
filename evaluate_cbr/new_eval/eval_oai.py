@@ -17,19 +17,20 @@ load_dotenv()  # take environment variables from .env.
 
 client = OpenAI()
 IMG_PLACEHOLDER = "data:image/png;base64,"
-
+MODE = "complex"
 BASEPATH = "/home/s4kibart/vision-retrieval/data/eval_all"
-RANKING_SAVE_PATH = f"{BASEPATH}/ranking_oai_epoch2_simple.json"
-RESULTS_PATH = f"{BASEPATH}/results_oai_epoch2_simple.json"
-QUERY_IMAGES = f"{BASEPATH}/microtexts-retrieval-simple/srip"
+RANKING_SAVE_PATH = f"{BASEPATH}/results/oai/ranking_oai_epoch1_temp0_{MODE}.json"
+RESULTS_PATH = f"{BASEPATH}/results/oai/results_oai_epoch1_temp0_{MODE}.json"
+QUERY_IMAGES = f"{BASEPATH}/microtexts-retrieval-{MODE}/srip"
+MAC_RESULTS_PATH = f"{BASEPATH}/mac_{MODE}.json"
 
 OPENAI_MODEL = (
-    "ft:gpt-4o-2024-08-06:wi2-trier-university:srip-900x2:APyQkjBm:ckpt-step-1798"
+    "ft:gpt-4o-2024-08-06:wi2-trier-university:srip-900x2:APyQjzsR:ckpt-step-899"
 )
 
 
 queries_texts = (
-    "/home/s4kibart/vision-retrieval/data/retrieval_queries/microtexts-retrieval-simple"
+    f"/home/s4kibart/vision-retrieval/data/retrieval_queries/microtexts-retrieval-{MODE}"
 )
 
 res = {}
@@ -57,8 +58,20 @@ def image_to_base64(image: Image.Image) -> str:
     image.save(buffered, format="PNG")
     return IMG_PLACEHOLDER + base64.b64encode(buffered.getvalue()).decode("utf-8")
 
+def build_mac_results(eval_json_path: str) -> dict[str, list[str]]:
+    with open(eval_json_path, "r") as f:
+        data = json.load(f)
+    out = {}
+    for query_name in data["individual"].keys():
+        out[query_name] = [
+            case["id"] for case in data["individual"][query_name]["mac"]["results"]
+        ]
+    return out
+
 
 def append_images(image) -> dict:
+    # mac phase has this prefix, eval folder structure does not
+    image = image.replace("microtexts/", "")
     return {
         "role": "user",
         "content": [
@@ -74,10 +87,17 @@ query_names = [
     path.split("/")[-1].split(".")[0] for path in glob(f"{queries_texts}/*.json")
 ]
 loaded_existing = os.path.exists(RANKING_SAVE_PATH)
+mac_results = build_mac_results(MAC_RESULTS_PATH)
+print(f"Using these MAC results: {MAC_RESULTS_PATH}")
+request_durations = []
 if loaded_existing:
     with open(RANKING_SAVE_PATH, "r") as f:
         ranking_oai = json.load(f)
         print("Loaded existing ranking")
+        sum_tokens = ranking_oai["sum_tokens"]
+        request_durations = ranking_oai["request_durations"]
+else:
+    print(f"No existing ranking found. Starting new evaluation with {len(query_names)} {MODE} queries...")
 for query_name in tqdm(query_names):
     query_text = f"{queries_texts}/{query_name}.json"
     query_image = f"{QUERY_IMAGES}/{query_name}.png"
@@ -90,7 +110,7 @@ for query_name in tqdm(query_names):
     }
     qrels[query_name] = reference_rankings
     casebase_path = f"{BASEPATH}/casebase/srip"
-    casebase_images = [f"{casebase_path}/{n}.png" for n in reference_rankings.keys()]
+    casebase_images = [f"{casebase_path}/{n}.png" for n in mac_results[query_name]]
     if loaded_existing and query_name in ranking_oai:
         answer = ranking_oai[query_name]
         print(f"{query_name}: Used existing ranking")
@@ -121,21 +141,26 @@ for query_name in tqdm(query_names):
                 "content": "The correct order of the retrieval images is:",
             }
         )
-
+        request_start = time.time()
         completion = client.chat.completions.create(
             model=OPENAI_MODEL,
             messages=prompt_messages,
+            temperature=0.0,
         )
+        request_durations.append(time.time() - request_start)
         answer = completion.choices[0].message.content
         sum_tokens += completion.usage.total_tokens
-    order = [int(i) for i in answer.split(",")]
-    keys = list(reference_rankings.keys())
-    # assert len(set(order)) == len(
-    #     reference_rankings
-    # ), "Rankings must be unique and equal to the number of images"
-    # assert set(order) == set(
-    #     range(2, len(reference_rankings) + 2)
-    # ), "Rankings must be a permutation of 1 to N"
+    try:
+        keys = list(reference_rankings.keys())
+        order = [int(i) for i in answer.split(",")]
+        # assert len(set(order)) == len(
+        #     reference_rankings
+        # ), "Rankings must be unique and equal to the number of images"
+        # assert set(order) == set(
+        #     range(2, len(reference_rankings) + 2)
+        # ), "Rankings must be a permutation of 1 to N"
+    except ValueError:
+        order = []
     simulated_sims = {
         keys[idx - 2]: 1 - 0.1 * (pos + 1) for pos, idx in enumerate(order)
     }
@@ -147,7 +172,9 @@ for query_name in tqdm(query_names):
             reference_rankings, simulated_sims, None
         )
     }
+print(res)
 ranking_oai["sum_tokens"] = sum_tokens
+ranking_oai["request_durations"] = request_durations
 with open(RANKING_SAVE_PATH, "w") as f:
     json.dump(ranking_oai, f)
 print("Starting evaluation")
@@ -160,8 +187,9 @@ evaluate(
     return_mean=False,
 )
 results = as_dict(query_names, copy.deepcopy(run.mean_scores), qrels, run, None)
+results["sum_tokens"] = sum_tokens
+results["request_duration"] = sum(request_durations)
 with open(RESULTS_PATH, "w") as f:
     json.dump(results, f)
 print(results)
-print(f"Duration: {time.time() - start}")
-print(f"Sum tokens: {sum_tokens}")
+print(f"Evaluation duration: {time.time() - start}")
