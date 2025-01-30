@@ -34,7 +34,7 @@ class NodeWrapper:
         return f"{self.node.id} ({self.node.label}) {self.y_pos} - {self.width}"
 
 
-def render(graph: ab.Graph, path: Path, normalize_graph=True, dpi=50) -> None:
+def render(graph: ab.Graph, path: Path, normalize_graph=False, dpi=50) -> None:
     if normalize_graph:
         normalize(graph)
     q = queue.Queue()
