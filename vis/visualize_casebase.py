@@ -5,13 +5,17 @@ from glob import glob
 from tqdm import tqdm
 import os
 
-GRAPHS_PATH = "../data/graphs/microtexts"
-OUTPUT_PATH = "../data/eval_all/casebase/logical"
+BASEPATH_GRAPHS = "../data/retrieval_queries"
+BASEPATH_IMAGES = "../data/eval_all"
 
-os.makedirs(OUTPUT_PATH, exist_ok=True)
+for t in ("simple", "complex"):
+    graphs_path = f"{BASEPATH_GRAPHS}/microtexts-retrieval-{t}"
+    output_path = f"{BASEPATH_IMAGES}/microtexts-retrieval-{t}/logical"
 
-for graph in tqdm(glob(f"{GRAPHS_PATH}/*.json")):
-    graph_name = Path(graph).stem
-    graph = ab.load.file(graph)
-    render(graph, Path(f"{OUTPUT_PATH}/{graph_name}.png"), normalize_graph=False)
+    os.makedirs(output_path, exist_ok=True)
+
+    for graph in tqdm(glob(f"{graphs_path}/*.json")):
+        graph_name = Path(graph).stem
+        graph = ab.load.file(graph)
+        render(graph, Path(f"{output_path}/{graph_name}.png"), normalize_graph=False)
 

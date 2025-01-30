@@ -272,12 +272,15 @@ def run_eval(
         )
         for q in tqdm(casebase_files)
     }
-    print(f"Processed {len(casebase)} casebase files in {time()-start} seconds")
+    duration = time() - start
+    print(f"Processed {len(casebase)} casebase files in {duration} seconds")
     print("Starting eval...")
     ev = Evaluation(
         casebase, ground_truths, mac_results, list(queries.values()), times=False
     )
-    return ev.as_dict()
+    res = ev.as_dict()
+    res["embedding_time"] = duration
+    return res
 
 
 if __name__ == "__main__":
@@ -293,7 +296,9 @@ if __name__ == "__main__":
     BASE_MODEL = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft"
 
     res = {}
-    for run in range(1):
+    RUNS = 10
+    for run in range(RUNS):
+        print(f"Starting run {run}/{RUNS}...")
         for t in ["simple", "complex"]:
             for model in model_names:
                 print(f"Running {model} on {t}...")
@@ -317,7 +322,7 @@ if __name__ == "__main__":
             #     f"/home/s4kibart/vision-retrieval/data/eval_all/results/torch_models/results_{t}_{run}.csv"
             # )
             with open(
-                f"/home/s4kibart/vision-retrieval/data/eval_all/results/torch_models/results_{t}_{run}.json",
+                f"/home/s4kibart/vision-retrieval/data/eval_all/results/torch_models/logical_new/results_{t}_{run}.json",
                 "w",
             ) as f:
                 json.dump(res, f)
