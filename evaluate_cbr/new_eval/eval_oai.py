@@ -151,7 +151,7 @@ for query_name in tqdm(query_names):
         answer = completion.choices[0].message.content
         sum_tokens += completion.usage.total_tokens
     try:
-        keys = list(reference_rankings.keys())
+        keys = [key.split("/")[-1] for key in mac_results[query_name]]
         order = [int(i) for i in answer.split(",")]
         # assert len(set(order)) == len(
         #     reference_rankings
