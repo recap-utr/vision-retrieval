@@ -2,7 +2,7 @@
 name = "vision-retrieval-oai-finetuning"
 version = "0.1.0"
 description = ""
-authors = ["Kilian Bartz <s4kibart@uni-trier.de>"]
+authors = [""]
 readme = "README.md"
 
 [tool.poetry.dependencies]

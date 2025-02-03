@@ -1,4 +1,4 @@
-from make_treemap_Snodes import visualize_treemap, standard_resize
+from treemaps import visualize_treemap, standard_resize
 import arguebuf as ab
 from glob import glob
 from tqdm import tqdm

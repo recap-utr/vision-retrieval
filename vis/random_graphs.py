@@ -4,9 +4,54 @@ import os
 import arguebuf as ab
 from logical import render
 from pathlib import Path
+from logical import NodeWrapper, render
+from srip import convert_from_AbstractNode_to_Node, SRIP2, SRIP_Config, default_weight
+from treemaps import visualize_treemap_inmem, standard_resize
+from tqdm import tqdm
+from os import makedirs
+import random
 
 MAX_DEPTH = 9
 MAX_BRANCHING_DEGREE = 7
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Generate random graphs.")
+    parser.add_argument(
+        "--max_depth", type=int, default=9, help="Maximum depth of the tree."
+    )
+    parser.add_argument(
+        "--max_branching_degree",
+        type=int,
+        default=7,
+        help="Maximum branching degree of the tree.",
+    )
+    parser.add_argument(
+        "--visualization",
+        type=str,
+        choices=["logical", "srip", "treemap"],
+        default="logical",
+        help="Type of visualization.",
+    )
+    parser.add_argument(
+        "--save_path",
+        type=str,
+        default="random_logical_srip/logical/images/",
+        help="Path to save the generated images.",
+    )
+    return parser.parse_args()
+
+
+args = parse_args()
+MAX_DEPTH = args.max_depth
+MAX_BRANCHING_DEGREE = args.max_branching_degree
+VISUALIZATION = args.visualization
+
+WIDTH = 256
+HEIGHT = 256
+os.chdir("../data/")
+savepath = args.save_path
+makedirs(savepath, exist_ok=True)
 
 
 def generate_tree(max_depth, depth: int = 0):
@@ -40,29 +85,32 @@ def convert_tree_to_graph(
     return root_node, graph
 
 
-# generate random graphs
-from logical import NodeWrapper, render
-from tqdm import tqdm
-from os import makedirs
-
-width = 256
-height = 256
-os.chdir("../data/")
-savepath = "random_logical_srip/logical/images/"
-makedirs(savepath, exist_ok=True)
-
-
 def generate_random_graphs(thread_num: int, k: int = 100_000):
     for i in tqdm(range(k)):
         md = randint(1, MAX_DEPTH)
         tree = generate_tree(md)
         graph = convert_tree_to_graph(tree)[1]
         path = Path(f"{savepath}{thread_num}_{i}.png")
-        render(graph, path, normalize_graph=False)
+        if VISUALIZATION == "logical":
+            render(graph, path, normalize_graph=False)
+        elif VISUALIZATION == "srip":
+            root, graph = convert_tree_to_graph(tree)
+            root = convert_from_AbstractNode_to_Node(graph, root)
+            config = SRIP_Config()
+            config.gamma = random.random() / 10
+            config.rho = random.random()
+            config.epsilon = random.random() * WIDTH
+            config.sigma = random.random()
+            config.lambda_ = randint(1, 5)
+        else:
+            visualize_treemap_inmem(graph, path, HEIGHT, WIDTH)
+            standard_resize(path)
+
         # print(f"Generated {i+1} graphs")
 
 
 from multiprocessing import Pool
+import argparse
 
 NUM_PROCESSES = os.cpu_count()
 

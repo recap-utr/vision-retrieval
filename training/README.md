@@ -1,4 +1,5 @@
 # Training
+In this directory, our code for training (pre-training, fine-tuning) our vision models can be found.
 While `finetuning.py` and `pretraining.py` contain the actual model and training code, the training is configured and launched from the corresponding `launch_finetuning.py` and `launch_pretraining.py` scripts. The training is monitored using `wandb`; the wandb project name can be specified inside `finetuning.py` and `pretraining.py`.
 
 ## Pre-Training

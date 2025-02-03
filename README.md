@@ -2,7 +2,8 @@
 This is the repository for our paper "Retrieving Argument Graphs Using Vision Transformers".
 It contains our code
 - to visualize argumentation graphs using our visualizations: Treemaps, Logical and Space-Reclaiming Icicle Plots (`vis` directory), 
-- for pre-training and fine-tuning our vision transformers as well as code used to fine-tune a GPT-o1 model (`training` directory),
+- for pre-training and fine-tuning our vision transformers (`training` directory),
+- for generating a training dataset to fine-tune a GPT-4o model (`oai-finetuning` directory),
 - to evaluate the various models (`eval` directory).
 
 A more detailed explanation of our scripts can be found in the README.md within those directories.
