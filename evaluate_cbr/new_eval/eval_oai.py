@@ -1,3 +1,4 @@
+import argparse
 import json
 from glob import glob
 from PIL import Image
@@ -13,25 +14,30 @@ import copy
 import os
 import time
 
+def parse_args():
+    parser = argparse.ArgumentParser(description='Evaluation script for vision retrieval')
+    parser.add_argument('--mode', default='complex', help='Evaluation mode')
+    parser.add_argument('--basepath', required=True, help='Base path for evaluation data')
+    parser.add_argument('--openai-model', required=True, help='OpenAI model identifier')
+    parser.add_argument('--queries-base-path', required=True, help='Base path for retrieval queries')
+    return parser.parse_args()
+
+args = parse_args()
+
 load_dotenv()  # take environment variables from .env.
 
 client = OpenAI()
 IMG_PLACEHOLDER = "data:image/png;base64,"
-MODE = "complex"
-BASEPATH = "/home/s4kibart/vision-retrieval/data/eval_all"
+MODE = args.mode
+BASEPATH = args.basepath
 RANKING_SAVE_PATH = f"{BASEPATH}/results/oai/ranking_oai_epoch1_temp0_{MODE}.json"
 RESULTS_PATH = f"{BASEPATH}/results/oai/results_oai_epoch1_temp0_{MODE}.json"
 QUERY_IMAGES = f"{BASEPATH}/microtexts-retrieval-{MODE}/srip"
 MAC_RESULTS_PATH = f"{BASEPATH}/mac_{MODE}.json"
 
-OPENAI_MODEL = (
-    "ft:gpt-4o-2024-08-06:wi2-trier-university:srip-900x2:APyQjzsR:ckpt-step-899"
-)
+OPENAI_MODEL = args.openai_model
+queries_texts = f"{args.queries_base_path}/microtexts-retrieval-{MODE}"
 
-
-queries_texts = (
-    f"/home/s4kibart/vision-retrieval/data/retrieval_queries/microtexts-retrieval-{MODE}"
-)
 
 res = {}
 ranking_oai = {}
