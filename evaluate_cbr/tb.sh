@@ -1,1 +1,0 @@
-apptainer run ~/poetry.sif run tensorboard --logdir="$1"
