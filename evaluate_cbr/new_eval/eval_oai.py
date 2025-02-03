@@ -90,6 +90,7 @@ loaded_existing = os.path.exists(RANKING_SAVE_PATH)
 mac_results = build_mac_results(MAC_RESULTS_PATH)
 print(f"Using these MAC results: {MAC_RESULTS_PATH}")
 request_durations = []
+images_sent = []
 if loaded_existing:
     with open(RANKING_SAVE_PATH, "r") as f:
         ranking_oai = json.load(f)
@@ -111,6 +112,7 @@ for query_name in tqdm(query_names):
     qrels[query_name] = reference_rankings
     casebase_path = f"{BASEPATH}/casebase/srip"
     casebase_images = [f"{casebase_path}/{n}.png" for n in mac_results[query_name]]
+    images_sent.append(casebase_images)
     if loaded_existing and query_name in ranking_oai:
         answer = ranking_oai[query_name]
         print(f"{query_name}: Used existing ranking")
@@ -130,7 +132,7 @@ for query_name in tqdm(query_names):
         prompt_messages.append(
             {
                 "role": "user",
-                "content": f"The following are images 2-{1+len(reference_rankings.keys())}, retrieval candidates:",
+                "content": f"The following are images 2-{1+len(casebase_images)}, retrieval candidates:",
             }
         )
         for img in casebase_images:
@@ -175,6 +177,7 @@ for query_name in tqdm(query_names):
 print(res)
 ranking_oai["sum_tokens"] = sum_tokens
 ranking_oai["request_durations"] = request_durations
+ranking_oai["images_sent"] = images_sent
 with open(RANKING_SAVE_PATH, "w") as f:
     json.dump(ranking_oai, f)
 print("Starting evaluation")
