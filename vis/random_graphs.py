@@ -102,6 +102,7 @@ def generate_random_graphs(thread_num: int, k: int = 100_000):
             config.epsilon = random.random() * WIDTH
             config.sigma = random.random()
             config.lambda_ = randint(1, 5)
+            SRIP2(root, graph, path, default_weight)
         else:
             visualize_treemap_inmem(graph, path, HEIGHT, WIDTH)
             standard_resize(path)
