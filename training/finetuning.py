@@ -5,7 +5,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 import torch.utils.data as data
-from lightning.pytorch.callbacks import LearningRateMonitor, ModelCheckpoint, EarlyStopping
+from lightning.pytorch.callbacks import (
+    LearningRateMonitor,
+    ModelCheckpoint,
+    EarlyStopping,
+)
 from torchvision import transforms
 from datasets import load_dataset
 import wandb
@@ -31,10 +35,10 @@ class SimCLR(L.LightningModule):
         pretrained_model=None,
     ):
         super().__init__()
-        self.save_hyperparameters(ignore=['pretrained_model'])
-        assert (
-            self.hparams.temperature > 0.0
-        ), "The temperature must be a positive float!"
+        self.save_hyperparameters(ignore=["pretrained_model"])
+        assert self.hparams.temperature > 0.0, (
+            "The temperature must be a positive float!"
+        )
         # Base model f(.)
         if pretrained_model is None:
             raise ValueError("Pretrained model must be provided!")
@@ -104,7 +108,6 @@ class SimCLR(L.LightningModule):
 
 
 def main(model, batch_size, latent_dim, epochs, checkpoint_path, dataset_name):
-
     processor = AutoImageProcessor.from_pretrained(model)
     vis = dataset_name.split("/")[-1]
     # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
@@ -118,9 +121,7 @@ def main(model, batch_size, latent_dim, epochs, checkpoint_path, dataset_name):
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
-    device = (
-        torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
-    )
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print("Device:", device)
     print("Number of workers:", NUM_WORKERS)
 
@@ -165,13 +166,14 @@ def main(model, batch_size, latent_dim, epochs, checkpoint_path, dataset_name):
         [torch.Tensor(x["pixel_values"]) for x in batch]
     )
 
-
     wandb_logger = WandbLogger(project=PROJECT, log_model=True)
 
     def train_simclr(batch_size, max_epochs=500, **kwargs):
-        checkpoint_callback = ModelCheckpoint(dirpath=f"/home/s4kibart/vision-retrieval/{PROJECT}/{vis}/checkpoints", save_top_k=2, monitor="val_loss")
+        checkpoint_callback = ModelCheckpoint(
+            dirpath=f"../{PROJECT}/{vis}/checkpoints", save_top_k=2, monitor="val_loss"
+        )
         trainer = L.Trainer(
-            default_root_dir=f"/home/s4kibart/vision-retrieval/{PROJECT}/{vis}",
+            default_root_dir=f"../{PROJECT}/{vis}",
             accelerator="auto",
             devices="auto",
             strategy="auto",
@@ -179,9 +181,15 @@ def main(model, batch_size, latent_dim, epochs, checkpoint_path, dataset_name):
             # precision="16-mixed",
             callbacks=[
                 checkpoint_callback,
-                #GenerateCallback(get_train_images(8), every_n_epochs=10),
+                # GenerateCallback(get_train_images(8), every_n_epochs=10),
                 LearningRateMonitor("epoch"),
-                EarlyStopping(monitor="val_loss", patience=3, mode="min", min_delta=0.2, verbose=True)
+                EarlyStopping(
+                    monitor="val_loss",
+                    patience=3,
+                    mode="min",
+                    min_delta=0.2,
+                    verbose=True,
+                ),
             ],
             logger=wandb_logger,
         )
@@ -206,7 +214,12 @@ def main(model, batch_size, latent_dim, epochs, checkpoint_path, dataset_name):
         )
         L.seed_everything(42)  # To be reproducible
         pretrained_model = AutoModel.from_pretrained(checkpoint_path)
-        model = SimCLR(max_epochs=max_epochs, pretrained_model=pretrained_model, latent_dim=latent_dim, **kwargs)
+        model = SimCLR(
+            max_epochs=max_epochs,
+            pretrained_model=pretrained_model,
+            latent_dim=latent_dim,
+            **kwargs,
+        )
         trainer.fit(model, train_loader, val_loader)
 
     train_simclr(
@@ -221,6 +234,7 @@ def main(model, batch_size, latent_dim, epochs, checkpoint_path, dataset_name):
         dataset=dataset_name,
     )
     wandb.finish()
+
 
 if __name__ == "__main__":
     pass

@@ -1,4 +1,4 @@
-from model import ImageGraph, ImageEmbeddingGraph
+from model import ImageEmbeddingGraph
 from new_evaluation import Evaluation
 import json
 from glob import glob
@@ -7,10 +7,9 @@ import torch
 from transformers import AutoModel, AutoImageProcessor
 from PIL import Image
 from tqdm import tqdm
-import pandas as pd
 from time import time
 
-# TODO: fix queries (currently none found), run, eval results
+OUTPUT_BASEPATH = "../data/eval_all/results/torch_models"
 
 
 def standard_file_name(path: str) -> str:
@@ -53,195 +52,9 @@ def embedding_func(model_path: str, base_model: str):
     return func
 
 
-topic_mapping = {
-    "allow_shops_to_open_on_holidays_and_sundays": [
-        "microtexts/nodeset6375",
-        "microtexts/nodeset6410",
-        "microtexts/nodeset6419",
-        "microtexts/nodeset6449",
-        "microtexts/nodeset6451",
-        "microtexts/nodeset6457",
-        "microtexts/nodeset6462",
-        "microtexts/nodeset6466",
-    ],
-    "health_insurance_cover_complementary_medicine": [
-        "microtexts/nodeset6363",
-        "microtexts/nodeset6370",
-        "microtexts/nodeset6373",
-        "microtexts/nodeset6378",
-        "microtexts/nodeset6385",
-        "microtexts/nodeset6386",
-        "microtexts/nodeset6395",
-        "microtexts/nodeset6412",
-        "med1",
-        "med2",
-        "med3",
-        "med4",
-    ],
-    "higher_dog_poo_fines": [
-        "microtexts/nodeset6362",
-        "microtexts/nodeset6367",
-        "microtexts/nodeset6371",
-        "microtexts/nodeset6392",
-        "microtexts/nodeset6400",
-        "microtexts/nodeset6420",
-        "microtexts/nodeset6452",
-        "microtexts/nodeset6468",
-        "dog1",
-        "dog2",
-        "dog3",
-        "dog4",
-    ],
-    "introduce_capital_punishment": [
-        "microtexts/nodeset6366",
-        "microtexts/nodeset6383",
-        "microtexts/nodeset6387",
-        "microtexts/nodeset6391",
-        "microtexts/nodeset6450",
-        "microtexts/nodeset6453",
-        "microtexts/nodeset6464",
-        "microtexts/nodeset6469",
-        "death1",
-        "death2",
-        "death3",
-        "death4",
-    ],
-    "public_broadcasting_fees_on_demand": [
-        "microtexts/nodeset6364",
-        "microtexts/nodeset6374",
-        "microtexts/nodeset6389",
-        "microtexts/nodeset6446",
-        "microtexts/nodeset6454",
-        "microtexts/nodeset6463",
-        "microtexts/nodeset6470",
-        "media1",
-        "media2",
-        "media3",
-        "media4",
-    ],
-    "cap_rent_increases": [
-        "microtexts/nodeset6369",
-        "microtexts/nodeset6377",
-        "microtexts/nodeset6384",
-        "microtexts/nodeset6418",
-        "microtexts/nodeset6455",
-        "microtexts/nodeset6465",
-        "rent1",
-        "rent2",
-        "rent3",
-        "rent4",
-        "cap_rent_increases",
-    ],
-    "charge_tuition_fees": [
-        "microtexts/nodeset6381",
-        "microtexts/nodeset6388",
-        "microtexts/nodeset6394",
-        "microtexts/nodeset6407",
-        "microtexts/nodeset6447",
-        "microtexts/nodeset6456",
-        "tuition1",
-        "tuition2",
-        "tuition3",
-        "tuition4",
-        "charge_tuition_fees",
-    ],
-    "keep_retirement_at_63": [
-        "microtexts/nodeset6382",
-        "microtexts/nodeset6409",
-        "microtexts/nodeset6411",
-        "microtexts/nodeset6416",
-        "microtexts/nodeset6421",
-        "microtexts/nodeset6461",
-    ],
-    "over_the_counter_morning_after_pill": [
-        "microtexts/nodeset6368",
-        "microtexts/nodeset6397",
-        "microtexts/nodeset6402",
-        "microtexts/nodeset6406",
-        "microtexts/nodeset6414",
-    ],
-    "increase_weight_of_BA_thesis_in_final_grade": [
-        "microtexts/nodeset6376",
-        "microtexts/nodeset6408",
-        "microtexts/nodeset6448",
-        "microtexts/nodeset6467",
-    ],
-    "stricter_regulation_of_intelligence_services": [
-        "microtexts/nodeset6365",
-        "microtexts/nodeset6401",
-        "microtexts/nodeset6405",
-        "microtexts/nodeset6458",
-    ],
-    "EU_influence_on_political_events_in_Ukraine": [
-        "microtexts/nodeset6399",
-        "microtexts/nodeset6415",
-        "microtexts/nodeset6460",
-        "eu_influence_on_political_events_in_ukraine",
-    ],
-    "make_video_games_olympic": [
-        "microtexts/nodeset6380",
-        "microtexts/nodeset6396",
-        "microtexts/nodeset6417",
-    ],
-    "school_uniforms": [
-        "microtexts/nodeset6372",
-        "microtexts/nodeset6390",
-        "microtexts/nodeset6398",
-    ],
-    "TXL_airport_remain_operational_after_BER_opening": [
-        "microtexts/nodeset6403",
-        "microtexts/nodeset6422",
-        "microtexts/nodeset6459",
-    ],
-    "buy_tax_evader_data_from_dubious_sources": [
-        "microtexts/nodeset6379",
-        "microtexts/nodeset6404",
-    ],
-    "partial_housing_development_at_Tempelhofer_Feld": [
-        "microtexts/nodeset6393",
-        "microtexts/nodeset6413",
-    ],
-    "waste_separation": ["microtexts/nodeset6361"],
-    "other": [
-        "microtexts/nodeset6423",
-        "microtexts/nodeset6424",
-        "microtexts/nodeset6425",
-        "microtexts/nodeset6426",
-        "microtexts/nodeset6427",
-        "microtexts/nodeset6428",
-        "microtexts/nodeset6429",
-        "microtexts/nodeset6430",
-        "microtexts/nodeset6431",
-        "microtexts/nodeset6432",
-        "microtexts/nodeset6433",
-        "microtexts/nodeset6434",
-        "microtexts/nodeset6435",
-        "microtexts/nodeset6436",
-        "microtexts/nodeset6437",
-        "microtexts/nodeset6438",
-        "microtexts/nodeset6439",
-        "microtexts/nodeset6440",
-        "microtexts/nodeset6441",
-        "microtexts/nodeset6442",
-        "microtexts/nodeset6443",
-        "microtexts/nodeset6444",
-        "microtexts/nodeset6445",
-    ],
-}
-
-
-def simulate_mac_phase(queries: list[ImageGraph]) -> dict[str, list[str]]:
-    res = {}
-    for query in queries:
-        q_name = query.name.split(".")[0]
-        for k, v in topic_mapping.items():
-            if q_name.lower() == k.lower():
-                res[q_name.lower()] = [k for k in v]
-                break
-            if q_name in v:
-                res[q_name.lower()] = [k for k in v]
-                break
-    return res
+def build_ideal_mac_results(eval_json_path: str) -> dict[str, list[str]]:
+    with open(eval_json_path, "r") as f:
+        return json.load(f)
 
 
 def run_eval(
@@ -261,10 +74,11 @@ def run_eval(
     }
     print(f"Processed {len(queries)} queries")
     ground_truths = {k: build_ground_truth(q.graph_path) for k, q in queries.items()}
-    mac_results = build_mac_results(eval_json_path)
-    # mac_results = simulate_mac_phase(list(queries.values()))
+    # mac_results = build_mac_results(eval_json_path) # for real mac results
+    mac_results = build_ideal_mac_results(eval_json_path)
     print("Processed ground truths and mac_results")
     casebase_files = glob(casebase_path_glob)
+    print("Processing casebase...")
     start = time()
     casebase = {
         standard_file_name(q): ImageEmbeddingGraph(
@@ -284,7 +98,7 @@ def run_eval(
 
 
 if __name__ == "__main__":
-    MODEL_BASEPATH = "/home/s4kibart/vision-retrieval/vis_models/"
+    MODEL_BASEPATH = "../vis_models/"
     model_names = [
         "logical_ft_arg",
         "logical_pt",
@@ -305,24 +119,20 @@ if __name__ == "__main__":
                 embedd = embedding_func(MODEL_BASEPATH + model, BASE_MODEL)
                 model_type = model.split("_")[0]
                 results = run_eval(
-                    f"/home/s4kibart/vision-retrieval/data/retrieval_queries/microtexts-retrieval-{t}/*.json",
-                    "/home/s4kibart/vision-retrieval/data/graphs/microtexts/*.json",
-                    f"/home/s4kibart/vision-retrieval/data/eval_all/mac_{t}.json",
+                    f"../data/retrieval_queries/microtexts-retrieval-{t}/*.json",
+                    "../data/graphs/microtexts/*.json",
+                    f"../data/eval_all/ideal_mac_{t}.json",
                     embedd,
-                    lambda x: f"/home/s4kibart/vision-retrieval/data/eval_all/microtexts-retrieval-{t}/{model_type}/"
+                    lambda x: f"../data/eval_all/microtexts-retrieval-{t}/{model_type}/"
                     + x.split("/")[-1].split(".")[0]
                     + ".png",
-                    lambda x: f"/home/s4kibart/vision-retrieval/data/eval_all/casebase/{model_type}/"
+                    lambda x: f"../data/eval_all/casebase/{model_type}/"
                     + x.split("/")[-1].split(".")[0]
                     + ".png",
                 )
                 res[model] = results
-            # df = pd.DataFrame(res)
-            # df.to_csv(
-            #     f"/home/s4kibart/vision-retrieval/data/eval_all/results/torch_models/results_{t}_{run}.csv"
-            # )
             with open(
-                f"/home/s4kibart/vision-retrieval/data/eval_all/results/torch_models/logical_new/results_{t}_{run}.json",
+                f"{OUTPUT_BASEPATH}/results_{t}_{run}.json",
                 "w",
             ) as f:
                 json.dump(res, f)
