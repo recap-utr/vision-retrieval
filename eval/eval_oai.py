@@ -14,13 +14,21 @@ import copy
 import os
 import time
 
+
 def parse_args():
-    parser = argparse.ArgumentParser(description='Evaluation script for vision retrieval')
-    parser.add_argument('--mode', default='complex', help='Evaluation mode')
-    parser.add_argument('--basepath', required=True, help='Base path for evaluation data')
-    parser.add_argument('--openai-model', required=True, help='OpenAI model identifier')
-    parser.add_argument('--queries-base-path', required=True, help='Base path for retrieval queries')
+    parser = argparse.ArgumentParser(
+        description="Evaluation script for vision retrieval"
+    )
+    parser.add_argument("--mode", default="complex", help="Evaluation mode")
+    parser.add_argument(
+        "--basepath", required=True, help="Base path for evaluation data"
+    )
+    parser.add_argument("--openai-model", required=True, help="OpenAI model identifier")
+    parser.add_argument(
+        "--queries-base-path", required=True, help="Base path for retrieval queries"
+    )
     return parser.parse_args()
+
 
 args = parse_args()
 
@@ -33,7 +41,7 @@ BASEPATH = args.basepath
 RANKING_SAVE_PATH = f"{BASEPATH}/results/oai/ranking_oai_epoch1_temp0_{MODE}.json"
 RESULTS_PATH = f"{BASEPATH}/results/oai/results_oai_epoch1_temp0_{MODE}.json"
 QUERY_IMAGES = f"{BASEPATH}/microtexts-retrieval-{MODE}/srip"
-MAC_RESULTS_PATH = f"{BASEPATH}/mac_{MODE}.json"
+MAC_RESULTS_PATH = f"{BASEPATH}/ideal_mac_{MODE}.json"
 
 OPENAI_MODEL = args.openai_model
 queries_texts = f"{args.queries_base_path}/microtexts-retrieval-{MODE}"
@@ -64,6 +72,7 @@ def image_to_base64(image: Image.Image) -> str:
     image.save(buffered, format="PNG")
     return IMG_PLACEHOLDER + base64.b64encode(buffered.getvalue()).decode("utf-8")
 
+
 def build_mac_results(eval_json_path: str) -> dict[str, list[str]]:
     with open(eval_json_path, "r") as f:
         data = json.load(f)
@@ -73,6 +82,11 @@ def build_mac_results(eval_json_path: str) -> dict[str, list[str]]:
             case["id"] for case in data["individual"][query_name]["mac"]["results"]
         ]
     return out
+
+
+def build_ideal_mac_results(eval_json_path: str) -> dict[str, list[str]]:
+    with open(eval_json_path, "r") as f:
+        return json.load(f)
 
 
 def append_images(image) -> dict:
@@ -93,7 +107,8 @@ query_names = [
     path.split("/")[-1].split(".")[0] for path in glob(f"{queries_texts}/*.json")
 ]
 loaded_existing = os.path.exists(RANKING_SAVE_PATH)
-mac_results = build_mac_results(MAC_RESULTS_PATH)
+# mac_results = build_mac_results(MAC_RESULTS_PATH)
+mac_results = build_ideal_mac_results(MAC_RESULTS_PATH)
 print(f"Using these MAC results: {MAC_RESULTS_PATH}")
 request_durations = []
 images_sent = []
@@ -104,7 +119,9 @@ if loaded_existing:
         sum_tokens = ranking_oai["sum_tokens"]
         request_durations = ranking_oai["request_durations"]
 else:
-    print(f"No existing ranking found. Starting new evaluation with {len(query_names)} {MODE} queries...")
+    print(
+        f"No existing ranking found. Starting new evaluation with {len(query_names)} {MODE} queries..."
+    )
 for query_name in tqdm(query_names):
     query_text = f"{queries_texts}/{query_name}.json"
     query_image = f"{QUERY_IMAGES}/{query_name}.png"
@@ -130,7 +147,7 @@ for query_name in tqdm(query_names):
             },
             {
                 "role": "user",
-                "content": f"Take a look at the following images in space reclaiming icicle chart visualization. Image 1 represents the query, images 2-{1+len(reference_rankings.keys())} are retrieval candidates. Please rank all retrieval candidates (images 2-{1+len(reference_rankings.keys())}) in descending order based on their similarity to the query image. If there were, for example, the three retrieval candidates images 2-4, image 3 having the highest similarity, image 2 the second highest and image 4 the lowest, you would output: 3,2,4.",
+                "content": f"Take a look at the following images in space reclaiming icicle chart visualization. Image 1 represents the query, images 2-{1 + len(reference_rankings.keys())} are retrieval candidates. Please rank all retrieval candidates (images 2-{1 + len(reference_rankings.keys())}) in descending order based on their similarity to the query image. If there were, for example, the three retrieval candidates images 2-4, image 3 having the highest similarity, image 2 the second highest and image 4 the lowest, you would output: 3,2,4.",
             },
             {"role": "user", "content": "This is image 1, the query"},
         ]
@@ -138,7 +155,7 @@ for query_name in tqdm(query_names):
         prompt_messages.append(
             {
                 "role": "user",
-                "content": f"The following are images 2-{1+len(casebase_images)}, retrieval candidates:",
+                "content": f"The following are images 2-{1 + len(casebase_images)}, retrieval candidates:",
             }
         )
         for img in casebase_images:

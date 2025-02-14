@@ -4,27 +4,30 @@ from statistics import mean
 from collections import defaultdict
 from glob import glob
 
+MODE = "simple"
+
+
 def process_files(folder_path):
     # Store all values in a nested dictionary
     all_values = defaultdict(lambda: defaultdict(list))
 
     # Process each JSON file
-    for filename in glob(os.path.join(folder_path, "results_complex_*.json")):
-            with open(os.path.join(folder_path, filename), 'r') as f:
-                data = json.load(f)
+    for filename in glob(os.path.join(folder_path, f"results_{MODE}_*.json")):
+        with open(os.path.join(folder_path, filename), "r") as f:
+            data = json.load(f)
 
-                # For each model type (logical_ft_arg, logical_pt, etc.)
-                for model, metrics in data.items():
-                    # For each metric in the model
-                    for metric, value in metrics.items():
-                        all_values[model][metric].append(value)
+            # For each model type (logical_ft_arg, logical_pt, etc.)
+            for model, metrics in data.items():
+                # For each metric in the model
+                for metric, value in metrics.items():
+                    all_values[model][metric].append(value)
 
     # Process the collected values
     result = {}
     for model in all_values:
         result[model] = {}
         for metric, values in all_values[model].items():
-            if metric in ['duration', 'embedding_time']:
+            if metric in ["duration", "embedding_time"]:
                 # Calculate average for duration and embedding_time
                 result[model][metric] = mean(values)
             else:
@@ -35,11 +38,24 @@ def process_files(folder_path):
 
     return result
 
+
 def create_latex_table(data):
-    metrics = ['ndcg', 'map', 'recall', 'correctness', 'completeness', 'duration', 'embedding_time']
+    metrics = [
+        "ndcg",
+        "map",
+        "recall",
+        "correctness",
+        "completeness",
+        "duration",
+        "embedding_time",
+    ]
 
     # Start the LaTeX table
-    latex = "\\begin{table}[h]\n\\centering\n\\begin{tabular}{l" + "r" * len(metrics) + "}\n"
+    latex = (
+        "\\begin{table}[h]\n\\centering\n\\begin{tabular}{l"
+        + "r" * len(metrics)
+        + "}\n"
+    )
     latex += "\\toprule Model & {\\scshape Ndcg} & {\\scshape Map} & {\\scshape Recall} & {\\scshape Cor} & {\\scshape Com} & {\\scshape Dur} & {\\scshape Emb}\\midrule\n"
 
     # Add data rows
@@ -56,9 +72,10 @@ def create_latex_table(data):
 
     return latex
 
+
 def main():
     # Replace with your folder path
-    folder_path = "/home/s4kibart/vision-retrieval/data/eval_all/results/torch_models/logical_new"
+    folder_path = "../data/eval_all/results/torch_models"
 
     # Process all files
     results = process_files(folder_path)
@@ -66,6 +83,7 @@ def main():
     # Create and print LaTeX table
     latex_table = create_latex_table(results)
     print(latex_table)
+
 
 if __name__ == "__main__":
     main()
