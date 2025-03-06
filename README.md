@@ -14,4 +14,4 @@ A corpus of publicly available argumentation graphs is available on [GitHub](htt
 
 
 ## Installation
-The project's dependencies are managed by [Poetry](https://python-poetry.org/). After [installing poetry](https://python-poetry.org/docs/cli/#install), create a virtual environment for the project using `poetry install`. After that, the various scripts can be executed using `poetry run python <script>`.
+The project's dependencies are managed by [uv](https://docs.astral.sh/uv/). After [installing uv](https://docs.astral.sh/uv/#installation), create a virtual environment for the project using `uv sync`. After that, the various scripts can be executed using `uv run python <script>`.
