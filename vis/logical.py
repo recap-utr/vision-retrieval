@@ -3,7 +3,7 @@ from pathlib import Path
 import queue
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from util import find_heighest_root_node, fig2img, layerize
+from util import find_heighest_root_node, fig2img, layerize, ColorNode
 from PIL import Image
 import io
 
@@ -25,12 +25,12 @@ support_colors = {
 
 
 class NodeWrapper:
-    def __init__(self, node, x_pos, y_pos, color, width: float = 10):
+    def __init__(self, node, x_pos, y_pos, color_node: ColorNode, width: float = 10):
         self.node = node
         self.x_pos = x_pos
         self.y_pos = y_pos
         self.width = width
-        self.color = color
+        self.color_node = color_node
 
     def __str__(self) -> str:
         return f"{self.node.id} ({self.node.label}) {self.y_pos} - {self.width}"
@@ -46,8 +46,9 @@ def render(
 ) -> Image.Image:
     # TODO: make option with normalized height
     q = queue.Queue()
-    q.put(NodeWrapper(root, 0, -1, outer_width))
+    q.put(NodeWrapper(root, 0, -1, ColorNode(root, []), outer_width))
     nodes = []
+    color_node_map = {}
     # BFS
     min_height = 0
     while not q.empty():
@@ -57,9 +58,21 @@ def render(
         if y_level < min_height:
             min_height = y_level
         children = graph.incoming_nodes(n.node)
+        previous_neighbor = None
         for i, c in enumerate(children):
             width = n.width / len(children)
-            q.put(NodeWrapper(c, n.x_pos + i * width, y_level - 1, width))
+
+            neighbors = [n.color_node]
+            if previous_neighbor:
+                neighbors.append(previous_neighbor)
+            elif color_node_map.get((n.x_pos - 1, y_level - 1)):
+                neighbors.append(color_node_map[(n.x_pos - 1, y_level - 1)])
+
+            color_node = ColorNode(c, neighbors)
+            node = NodeWrapper(c, n.x_pos + i * width, y_level - 1, color_node, width)
+            q.put(node)
+            previous_neighbor = color_node
+            color_node_map[(n.x_pos, y_level - 1)] = color_node
 
     height = outer_height / abs(min_height)
     if normalize_height:
@@ -71,15 +84,12 @@ def render(
     # ax.set_aspect("equal")
     y_level = 0
     for n in nodes:
-        color = inode_colors[0]
-        if isinstance(n.node, ab.SchemeNode):
-            color = attack_colors[0] if n.node.label == "Attack" else support_colors[0]
+        color = n.color_node.get_color()
         ax.add_patch(
             patches.Rectangle(
                 (n.x_pos, outer_height + n.y_pos * height),
                 n.width,
                 height,
-                edgecolor="black",
                 facecolor=color,
             )
         )

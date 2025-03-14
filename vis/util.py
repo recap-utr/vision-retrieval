@@ -50,6 +50,7 @@ def layerize(
 def fig2img(fig):
     """Convert a Matplotlib figure to a PIL Image and return it"""
     import io
+
     buf = io.BytesIO()
     fig.savefig(buf)
     buf.seek(0)
@@ -57,37 +58,42 @@ def fig2img(fig):
     fig.close()
     return img
 
+
 class ColorNode:
 
-    node_type = Literal["inode", "attack", "support"]
-    color = [0, 0, 0]
+    node_type: Literal["inode", "attack", "support"]
 
-    def __init__(self, node: ab.AbstractNode, neighbors: list['ColorNode']) -> None:
+    def __init__(self, node: ab.AbstractNode, neighbors: list["ColorNode"]) -> None:
+        self.color = [0, 0, 0]
         idx = 0
         if isinstance(node, ab.AtomNode):
             self.node_type = "inode"
             idx = 2
         elif isinstance(node, ab.SchemeNode) and node.label == "Attack":
             self.node_type = "attack"
-        else :
+        else:
             self.node_type = "support"
             idx = 1
         same_colored_neighbors = [n for n in neighbors if n.node_type == self.node_type]
-        color_value = get_next_color([n.characteristic_color_value() for n in same_colored_neighbors])
+        color_value = get_next_color(
+            [n.characteristic_color_value() for n in same_colored_neighbors]
+        )
         self.color[idx] = color_value
 
     def characteristic_color_value(self) -> int:
         return sum(self.color)
-    
-    def __str__(self) -> str:
-        return f"rgb({self.color[0]}, {self.color[1]}, {self.color[2]})"
+
+    def get_color(self) -> tuple:
+        return tuple([c / 255 for c in self.color])
+        # return self.color
+
 
 def get_next_color(neighbors: list[int]) -> int:
-    """  Returns the color of the next node in the sequence (equally spaced colors)"""
+    """Returns the color of the next node in the sequence (equally spaced colors)"""
     if len(neighbors) == 0:
         return 255
     if len(neighbors) == 1:
-        if (neighbors[0] < 178):
+        if neighbors[0] < 178:
             return 255
         else:
             return 100
