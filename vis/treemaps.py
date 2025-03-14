@@ -98,16 +98,23 @@ def build_tree(graph: ab.Graph, root: ab.AbstractNode):
 
 
 def visualize_treemap(
-    graphpath: str, root: ab.AbstractNode, height: float = 10, width: float = 10, dpi: int = 100
+    graphpath: str,
+    root: ab.AbstractNode,
+    height: float = 10,
+    width: float = 10,
+    dpi: int = 100,
 ) -> Image.Image:
     graph = ab.load.file(graphpath)
     return visualize_treemap_inmem(graph, root, height, width)
 
 
 def visualize_treemap_inmem(
-    graph: ab.Graph, root: ab.AbstractNode, height: float = 10, width: float = 10, dpi: int = 100
+    graph: ab.Graph,
+    root: ab.AbstractNode,
+    height: float = 10,
+    width: float = 10,
+    dpi: int = 100,
 ) -> Image.Image:
-    # TODO: make option with normalized height
     if root is None and graph.root_node is None:
         raise ValueError("Root node is ambiguous. Please provide a root node.")
     tree = build_tree(graph, root)
@@ -118,11 +125,12 @@ def visualize_treemap_inmem(
     # create png
     return fig2img(draw_treemap(rects, height, width, dpi=dpi))
 
+
 def draw_treemap(rects, height, width, dpi: int):
     fig = plt.figure(figsize=(width, height), dpi=100)
 
     # Create axes that fill the entire figure
-    ax = fig.add_axes([0, 0, 1, 1])
+    ax = fig.add_axes((0, 0, 1, 1))
     ax.set_xlim(0, width)
     ax.set_ylim(0, height)
     # ax.set_aspect("equal", adjustable="box")
