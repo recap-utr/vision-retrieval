@@ -1,4 +1,5 @@
 import arguebuf as ab
+from PIL import Image
 
 
 def normalize(graph: ab.Graph) -> None:
@@ -19,11 +20,11 @@ def normalize(graph: ab.Graph) -> None:
             graph.add_edge(ab.Edge(s_node, incoming_i_nodes[0]))
 
 
-def find_major_claim(graph: ab.Graph) -> ab.AbstractNode:
-    if graph.major_claim:
-        return graph.major_claim
-    mj = [n for n in graph.atom_nodes.values() if len(graph.outgoing_nodes(n)) == 0]
-    return mj[0]
+def find_heighest_root_node(graph: ab.Graph) -> ab.AbstractNode:
+    layers = [layerize(graph, root) for root in graph.root_nodes]
+    max_depth = max([len(layer) for layer in layers])
+    max_depth_index = [i for i, layer in enumerate(layers) if len(layer) == max_depth]
+    return list(graph.root_nodes)[max_depth_index[0]]
 
 
 def layerize(
@@ -43,3 +44,14 @@ def layerize(
             layers.append(new_layer)
         current_depth += 1
     return layers
+
+
+def fig2img(fig):
+    """Convert a Matplotlib figure to a PIL Image and return it"""
+    import io
+    buf = io.BytesIO()
+    fig.savefig(buf)
+    buf.seek(0)
+    img = Image.open(buf)
+    fig.close()
+    return img

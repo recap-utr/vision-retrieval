@@ -3,7 +3,9 @@ from pathlib import Path
 import queue
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
-from util import find_major_claim, normalize
+from util import find_heighest_root_node, fig2img
+from PIL import Image
+import io
 
 inode_colors = {
     0: "#0212f9",
@@ -23,9 +25,8 @@ support_colors = {
 
 
 class NodeWrapper:
-    def __init__(self, node, parent, x_pos, y_pos, width=256):
+    def __init__(self, node, x_pos, y_pos, width: float = 10):
         self.node = node
-        self.parent = parent
         self.x_pos = x_pos
         self.y_pos = y_pos
         self.width = width
@@ -34,55 +35,49 @@ class NodeWrapper:
         return f"{self.node.id} ({self.node.label}) {self.y_pos} - {self.width}"
 
 
-def render(graph: ab.Graph, path: Path, normalize_graph=False, dpi=50) -> None:
-    if normalize_graph:
-        normalize(graph)
+def render(graph: ab.Graph, root: ab.AbstractNode, outer_height: float = 10, outer_width: float = 10, dpi=50) -> Image.Image:
+    # TODO: make option with normalized height
     q = queue.Queue()
-    major_claim = find_major_claim(graph)
-    q.put(NodeWrapper(major_claim, None, 0, 0))
+    q.put(NodeWrapper(root, 0, -1, outer_width))
     nodes = []
+    # BFS
+    min_height = 0
     while not q.empty():
         n = q.get()
         nodes.append(n)
+        y_level = n.y_pos
+        if y_level < min_height:
+            min_height = y_level
         children = graph.incoming_nodes(n.node)
         for i, c in enumerate(children):
             width = n.width / len(children)
-            q.put(NodeWrapper(c, n, n.x_pos + i * width, n.y_pos + 1, width))
-    max_height = nodes[-1].y_pos + 1
-    height = 256 / max_height
+            q.put(NodeWrapper(c, n.x_pos + i * width, y_level - 1, width))
+            
 
-    _, ax = plt.subplots(figsize=(6, 6))
-    ax.set_xlim(0, 256)
-    ax.set_ylim(0, 256)
-    ax.set_aspect("equal")
-    x_number = 0
+    height = outer_height / abs(min_height)
+    _, ax = plt.subplots(figsize=(outer_width, outer_height))
+    ax.set_xlim(0, outer_width)
+    ax.set_ylim(0, outer_height)
+    # ax.set_aspect("equal")
     y_level = 0
     for n in nodes:
-        color = inode_colors[x_number % 3]
+        color = inode_colors[0]
         if isinstance(n.node, ab.SchemeNode):
             color = (
-                attack_colors[x_number % 3]
+                attack_colors[0]
                 if n.node.label == "Attack"
-                else support_colors[x_number % 3]
+                else support_colors[0]
             )
         ax.add_patch(
             patches.Rectangle(
-                (n.x_pos, n.y_pos * height),
+                (n.x_pos, outer_height + n.y_pos * height),
                 n.width,
                 height,
                 edgecolor="black",
                 facecolor=color,
-            )
-        )
-        x_number += 1
-        if n.y_pos > y_level:
-            y_level = n.y_pos
-            x_number = 0
-
-        # ax.text(n.x_pos + n.width / 2, -n.y_pos + rand, n.node.label, ha='center', va='center')
+            ))
 
     ax.set_axis_off()
     # remove white border
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
-    plt.savefig(path, bbox_inches=0, pad_inches=0, dpi=dpi)
-    plt.close("all")
+    return fig2img(plt)

@@ -3,7 +3,7 @@ from tqdm import tqdm
 from srip import convert_from_AbstractNode_to_Node, SRIP2, SRIP_Config, default_weight
 import arguebuf as ab
 from pathlib import Path
-from util import find_major_claim
+from util import find_heighest_root_node
 from time import time
 from PIL import Image
 from transformers import AutoModel, AutoImageProcessor
@@ -58,7 +58,7 @@ for i in tqdm(range(TIMES)):
         number_s_nodes = file.split("/")[-1].split(".")[0]
         path = Path(f"{DEST}/{file.split('/')[-1].replace('json', 'png')}")
         start = time()
-        mj = find_major_claim(graph)
+        mj = find_heighest_root_node(graph)
         root_srip = convert_from_AbstractNode_to_Node(graph, mj)
         root = convert_from_AbstractNode_to_Node(graph, mj)
         SRIP2(root, graph, path, default_weight)
@@ -66,7 +66,7 @@ for i in tqdm(range(TIMES)):
 
 # visualize case
 case_graph = ab.load.file(CB)
-case_mj = find_major_claim(case_graph)
+case_mj = find_heighest_root_node(case_graph)
 case_path = Path(CASEDEST)
 SRIP2(
     convert_from_AbstractNode_to_Node(case_graph, case_mj),

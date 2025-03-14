@@ -211,3 +211,4 @@ VisionRetrievalFineTuning/
 VisionRetrievalPretraining/
 *.ckpt
 *.jsonl
+vis/testgraphs/

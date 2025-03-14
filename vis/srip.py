@@ -5,7 +5,9 @@ import matplotlib.patches as patches
 from pathlib import Path
 from dataclasses import dataclass
 import math
-from util import layerize, find_major_claim
+from util import layerize, find_heighest_root_node, fig2img
+import io
+from PIL import Image
 
 #  TODO: Test SRIP1 and SRIP2
 
@@ -24,6 +26,7 @@ support_colors = {
     1: "#11ad00",
     2: "#52fc3f",
 }
+
 
 
 class Node:
@@ -81,14 +84,15 @@ class SRIP_Config:
     """
 
     dpi: int = 100
-    W: int = 10
-    H: int = 10
+    W: float = 10
+    H: float = 10
 
     gamma: float = 0
     rho: float = 0.5
     epsilon: float = W
     sigma = 0.25
     lambda_ = 1
+    normalize_height: bool = False
 
 
 def convert_from_AbstractNode_to_Node(
@@ -123,8 +127,8 @@ def default_weight(x: Node | list[Node]):
 
 
 def SRIP1(
-    r: Node, graph: ab.Graph, path: Path, config: SRIP_Config = SRIP_Config()
-) -> None:
+    r: ab.AbstractNode, graph: ab.Graph, config: SRIP_Config = SRIP_Config()
+) -> Image.Image:
     """
     Draws a space reclaiming icicle plots (SRIP1) from https://doi.org/10.1109/PacificVis48177.2020.4908 and saves it to path.
 
@@ -133,21 +137,21 @@ def SRIP1(
     - num_layers (int): The number of layers. Obtain this as len(layerize(graph, find_major_claim(graph)).
     - path (Path): The path to save the plot.
     """
-    plot = plt.figure()
-    h = config.H / len(layerize(graph, find_major_claim(graph)))  # height of each layer
-    _, ax = plt.subplots(figsize=(10, 10))
+    root_for_height = find_heighest_root_node(graph) if config.normalize_height else r
+    h = config.H / len(layerize(graph, root_for_height))  # height of each layer
+    r_node = convert_from_AbstractNode_to_Node(graph, r)
+    _, ax = plt.subplots(figsize=(config.W, config.H))
     ax.set_xlim(0, config.W)
     ax.set_ylim(config.H, 0)
     ax.set_axis_off()
     # remove white border
-    plot.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
     points = [(0, 0), (config.W, 0), (config.W, h), (0, h)]
     ax.add_patch(patches.Polygon(points, fill=False))
-    r.set_ll_width(0, h, config.W)
-    if len(r.children) > 0:
-        _SRIP1_r(1, [r], len(r.children), config.W, h, config, ax)
-    plt.savefig(path, bbox_inches=0, pad_inches=0, dpi=config.dpi)
-    plt.close()
+    r_node.set_ll_width(0, h, config.W)
+    if len(r_node.children) > 0:
+        _SRIP1_r(1, [r_node], len(r_node.children), config.W, h, config, ax)
+    return fig2img(plt)
 
 
 def _SRIP1_r(
@@ -181,43 +185,41 @@ def _SRIP1_r(
 
 
 def SRIP2(
-    r: Node,
+    r: ab.AtomNode,
     graph: ab.Graph,
-    path: Path,
     weight_func: Callable,
     config: SRIP_Config = SRIP_Config(),
-):
+) -> Image.Image:
     """
-    Draws a space reclaiming icicle plots (SRIP1) from https://doi.org/10.1109/PacificVis48177.2020.4908 and saves it to path.
+    Draws a space reclaiming icicle plots (SRIP2) from https://doi.org/10.1109/PacificVis48177.2020.4908 and saves it to path.
 
     Parameters:
     - r (Node): The root node (major claim).
     - num_layers (int): The number of layers. Obtain this as len(layerize(graph, find_major_claim(graph)).
     - path (Path): The path to save the plot.
     """
-    plot = plt.figure()
-    h = config.H / len(layerize(graph, find_major_claim(graph)))  # height of each layer
-    _, ax = plt.subplots(figsize=(10, 10))
+    root_for_height = find_heighest_root_node(graph) if config.normalize_height else r
+    r_node = convert_from_AbstractNode_to_Node(graph, r)
+    h = config.H / len(layerize(graph, root_for_height))  # height of each layer
+    _, ax = plt.subplots(figsize=(config.W, config.H))
     ax.set_xlim(0 - 0.001, config.W + 0.001)
     ax.set_ylim(config.H + 0.001, 0 - 0.001)
     ax.set_axis_off()
     # remove white border
-    plot.subplots_adjust(left=0, right=1, top=1, bottom=0)
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
     # computeWeights()
     o = (config.W - config.epsilon) / 2
 
     points = [(o, 0), (config.W - o, 0), (config.W - o, h), (o, h)]
-    ax.add_patch(patches.Polygon(points, fill=True, color=r.color()))
-    r.set_ll_width(0, h, config.W)
-    C = r.children
+    ax.add_patch(patches.Polygon(points, fill=True, color=r_node.color()))
+    r_node.set_ll_width(0, h, config.W)
+    C = r_node.children
     if len(C) > 0:
         _SRIP2_r(
-            1, [r], len(C), weight_func(C), config.W, 0, h, weight_func, config, ax
+            1, [r_node], len(C), weight_func(C), config.W, 0, h, weight_func, config, ax
         )
-    plt.savefig(path, bbox_inches=0, pad_inches=0, dpi=config.dpi)
-    plt.close("all")
+    return fig2img(plt)
 
 
 def _SRIP2_r(

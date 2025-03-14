@@ -3,6 +3,8 @@ import matplotlib.patches as patches
 import arguebuf as ab
 from PIL import Image
 from pathlib import Path
+import io
+from util import fig2img
 
 colors = {"Attack": "#e6194B", "Support": "#3cb44b"}
 
@@ -66,7 +68,7 @@ def get_treemap_rects(tree, x, y, width, height, horizontal, depth=0) -> list:
     return res
 
 
-def _get_children(graph: ab.Graph, node: ab.AtomNode):
+def _get_children(graph: ab.Graph, node: ab.AbstractNode):
     res = [
         child
         for child in graph.incoming_nodes(node)
@@ -79,7 +81,7 @@ def _get_children(graph: ab.Graph, node: ab.AtomNode):
     return res
 
 
-def build_tree(graph: ab.Graph, root: ab.AtomNode):
+def build_tree(graph: ab.Graph, root: ab.AbstractNode):
     if not isinstance(root, ab.SchemeNode):
         return {
             "children": [
@@ -95,11 +97,35 @@ def build_tree(graph: ab.Graph, root: ab.AtomNode):
     }
 
 
-def draw_treemap(rects, height, width, savepath: str | Path):
-    _, ax = plt.subplots(1)
+def visualize_treemap(
+    graphpath: str, root: ab.AbstractNode, height: float = 10, width: float = 10, dpi: int = 100
+) -> Image.Image:
+    graph = ab.load.file(graphpath)
+    return visualize_treemap_inmem(graph, root, height, width)
+
+
+def visualize_treemap_inmem(
+    graph: ab.Graph, root: ab.AbstractNode, height: float = 10, width: float = 10, dpi: int = 100
+) -> Image.Image:
+    # TODO: make option with normalized height
+    if root is None and graph.root_node is None:
+        raise ValueError("Root node is ambiguous. Please provide a root node.")
+    tree = build_tree(graph, root)
+
+    # get treemap rects
+    rects = get_treemap_rects(tree, 0, 0, width, height, True)
+
+    # create png
+    return fig2img(draw_treemap(rects, height, width, dpi=dpi))
+
+def draw_treemap(rects, height, width, dpi: int):
+    fig = plt.figure(figsize=(width, height), dpi=100)
+
+    # Create axes that fill the entire figure
+    ax = fig.add_axes([0, 0, 1, 1])
     ax.set_xlim(0, width)
     ax.set_ylim(0, height)
-    ax.set_aspect("equal", adjustable="box")
+    # ax.set_aspect("equal", adjustable="box")
     ax.axis("off")  # Remove axis labeling
     ax.margins(0)  # Remove padding
     for rect in rects:
@@ -117,66 +143,4 @@ def draw_treemap(rects, height, width, savepath: str | Path):
             )
         )
 
-    plt.savefig(savepath)
-    plt.close()
-
-
-def visualize_treemap(
-    graphpath: str, savepath: str | Path, height: int = 256, width: int = 256
-):
-    graph = ab.load.file(graphpath)
-    visualize_treemap_inmem(graph, savepath, height, width)
-
-
-def visualize_treemap_inmem(
-    graph: ab.Graph, savepath: str | Path, height: int = 256, width: int = 256
-):
-    # find source nodes (i.e. nodes without incoming edges)
-    source_nodes = [
-        node for node in graph.nodes.values() if len(graph.outgoing_edges(node)) == 0
-    ]
-
-    # build tree
-    tree = (
-        build_tree(graph, graph.major_claim)
-        if graph.major_claim
-        else build_tree(graph, source_nodes[0])
-    )
-
-    # get treemap rects
-    rects = get_treemap_rects(tree, 0, 0, width, height, True)
-
-    # create png
-    draw_treemap(rects, height, width, savepath)
-
-
-def multi_treemaps(graph: ab.Graph, savepath: str, height: int = 256, width: int = 256):
-    source_nodes = [
-        node for node in graph.nodes.values() if len(graph.outgoing_edges(node)) == 0
-    ]
-
-    # build tree
-    trees = [build_tree(graph, sn) for sn in source_nodes]
-
-    # get treemap rects
-    rects = [get_treemap_rects(tree, 0, 0, width, height, True) for tree in trees]
-
-    # create png
-    [
-        draw_treemap(rects, height, width, f"{savepath}-{idx}.png")
-        for idx, rects in enumerate(rects)
-    ]
-    [standard_resize(f"{savepath}-{idx}.png") for idx, rects in enumerate(rects)]
-
-
-def standard_resize(file: str | Path):
-    img = Image.open(file)
-    img = img.crop(
-        (
-            img.width / 2 - 177,
-            img.height / 2 - 182,
-            img.width / 2 + 192,
-            img.height / 2 + 177,
-        )
-    ).resize((256, 256))
-    img.save(file)
+    return plt

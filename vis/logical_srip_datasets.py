@@ -1,6 +1,6 @@
 from logical import NodeWrapper, render
 from srip import SRIP2, convert_from_AbstractNode_to_Node, default_weight
-from util import find_major_claim
+from util import find_heighest_root_node
 import arguebuf as ab
 from glob import glob
 from tqdm import tqdm
@@ -35,7 +35,7 @@ def process_dataset(name, ext):
     for file in tqdm(glob(f"{base_path}/graphs/{name}/*.{ext}")):
         try:
             graph = ab.load.file(file)
-            mj = find_major_claim(graph)
+            mj = find_heighest_root_node(graph)
             root_srip = convert_from_AbstractNode_to_Node(graph, mj)
             path = Path(f"{srip_dir}/{name}-{file.split('/')[-1].replace(ext, 'png')}")
             SRIP2(root_srip, graph, path, default_weight)
