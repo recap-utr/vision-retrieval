@@ -5,28 +5,9 @@ import matplotlib.patches as patches
 from pathlib import Path
 from dataclasses import dataclass
 import math
-from util import layerize, find_heighest_root_node, fig2img
+from util import layerize, find_heighest_root_node, fig2img, ColorNode
 import io
 from PIL import Image
-
-#  TODO: Test SRIP1 and SRIP2
-
-inode_colors = {
-    0: "#0212f9",
-    1: "#020b82",
-    2: "#5863fc",
-}
-attack_colors = {
-    0: "#fc0505",
-    1: "#aa0000",
-    2: "#fc5353",
-}
-support_colors = {
-    0: "#1dfc05",
-    1: "#11ad00",
-    2: "#52fc3f",
-}
-
 
 
 class Node:
@@ -34,30 +15,32 @@ class Node:
     x = 0
     y = 0
     w = 0
-    text = ""
-    node_type = "i"
+    node: ab.AbstractNode
     sticky = False
     span = 0
     index = 0
+    color_node: ColorNode | None
 
     def set_ll_width(self, x: float, y: float, w: float):
         self.x, self.y, self.w = x, y, w
 
     def __init__(
-        self, label, type: Literal["i", "a", "s"], index: int, children: list
+        self,
+        label,
+        index: int,
+        children: list,
+        node: ab.AbstractNode,
+        color_node: ColorNode | None = None,
     ) -> None:
         self.text = label
         self.node_type = type
         self.children = children
         self.index = index
+        self.color_node = color_node
+        self.node = node
 
-    def color(self):
-        if self.node_type == "i":
-            return inode_colors[self.index % 3]
-        elif self.node_type == "a":
-            return attack_colors[self.index % 3]
-        else:
-            return support_colors[self.index % 3]
+    def set_color_node(self, color_node: ColorNode):
+        self.color_node = color_node
 
 
 @dataclass
@@ -96,30 +79,18 @@ class SRIP_Config:
 
 
 def convert_from_AbstractNode_to_Node(
-    graph: ab.Graph, node: ab.AbstractNode, idx=0
+    graph: ab.Graph, node: ab.AbstractNode, color_node: ColorNode | None = None, idx=0
 ) -> Node:
-    node_type = "i"
-    if isinstance(node, ab.SchemeNode):
-        node_type = "a" if node.label == "Attack" else "s"
-    new_node = Node(
+    return Node(
         node.label,
-        node_type,
         idx,
         [
-            convert_from_AbstractNode_to_Node(graph, c, i)
+            convert_from_AbstractNode_to_Node(graph, c, None, i)
             for i, c in enumerate(graph.incoming_nodes(node))
         ],
+        node,
+        color_node,
     )
-    return new_node
-
-
-def _select_color(node, config, idx):
-    if node.node_type == "i":
-        return config.inode_colors[idx % 3]
-    elif node.node_type == "a":
-        return config.attack_colors[idx % 3]
-    else:
-        return config.support_colors[idx % 3]
 
 
 def default_weight(x: Node | list[Node]):
@@ -139,7 +110,7 @@ def SRIP1(
     """
     root_for_height = find_heighest_root_node(graph) if config.normalize_height else r
     h = config.H / len(layerize(graph, root_for_height))  # height of each layer
-    r_node = convert_from_AbstractNode_to_Node(graph, r)
+    r_node = convert_from_AbstractNode_to_Node(graph, r, ColorNode(r, []))
     _, ax = plt.subplots(figsize=(config.W, config.H))
     ax.set_xlim(0, config.W)
     ax.set_ylim(config.H, 0)
@@ -164,6 +135,7 @@ def _SRIP1_r(
     h: float,  # height of each layer
     config: SRIP_Config,
     ax,
+    color_node_map={},
 ):
     U = w - (m - 1) * config.gamma
     x, y = (config.W - w) / 2, (d + 1) * h
@@ -171,7 +143,14 @@ def _SRIP1_r(
 
     for p in P:
         p0 = (p.x, p.y)
+        previous_neighbor = None
         for c in p.children:
+            neighbors = [p.color_node]
+            if previous_neighbor:
+                neighbors.append(previous_neighbor)
+            elif color_node_map.get((x - tri, y)):
+                neighbors.append(color_node_map[(x - tri, y)])
+
             p1 = (p0[0] + 1 / len(p.children) * p.w, p0[1])
             tri = U / m
             points = [p0, p1, (x + tri, y), (x, y)]
@@ -180,6 +159,8 @@ def _SRIP1_r(
             x, p0, n = x + tri + config.gamma, p1, len(c.children)
             if n > 0:
                 P2, w2, m2 = P2 + [c], w2 + tri, m2 + n
+            previous_neighbor = c.color_node
+            color_node_map[(x, y)] = c.color_node
     if m2 > 0:
         _SRIP1_r(d + 1, P2, m2, w2 + config.rho * (config.W - w2), h, config, ax)
 
@@ -199,25 +180,36 @@ def SRIP2(
     - path (Path): The path to save the plot.
     """
     root_for_height = find_heighest_root_node(graph) if config.normalize_height else r
-    r_node = convert_from_AbstractNode_to_Node(graph, r)
+    r_node = convert_from_AbstractNode_to_Node(graph, r, ColorNode(r, []))
     h = config.H / len(layerize(graph, root_for_height))  # height of each layer
     _, ax = plt.subplots(figsize=(config.W, config.H))
-    ax.set_xlim(0 - 0.001, config.W + 0.001)
-    ax.set_ylim(config.H + 0.001, 0 - 0.001)
+    ax.set_xlim(0, config.W)
+    ax.set_ylim(config.H, 0)
     ax.set_axis_off()
     # remove white border
     plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
 
     # computeWeights()
-    o = (config.W - config.epsilon) / 2
+    offset = (config.W - config.epsilon) / 2
 
-    points = [(o, 0), (config.W - o, 0), (config.W - o, h), (o, h)]
-    ax.add_patch(patches.Polygon(points, fill=True, color=r_node.color()))
+    points = [(offset, 0), (config.W - offset, 0), (config.W - offset, h), (offset, h)]
+    ax.add_patch(
+        patches.Polygon(points, fill=True, color=r_node.color_node.get_color())
+    )
     r_node.set_ll_width(0, h, config.W)
     C = r_node.children
     if len(C) > 0:
         _SRIP2_r(
-            1, [r_node], len(C), weight_func(C), config.W, 0, h, weight_func, config, ax
+            1,
+            [r_node],
+            len(C),
+            weight_func(C),
+            config.W,
+            0,
+            h,
+            weight_func,
+            config,
+            ax,
         )
     return fig2img(plt)
 
@@ -244,6 +236,7 @@ def _SRIP2_r(
     U = w - g - (m - 1) * gamma_d
     x, y = (config.W - w) / 2, (d + 1) * h
     P2, m2, A2, w2, g2 = [], 0, 0, 0, 0
+    previous_neighbor = None
     for p in P:
         p0 = (p.x, p.y)
         if p.sticky:
@@ -259,11 +252,18 @@ def _SRIP2_r(
                 p1 = (p0[0] + (weight_func(c) / weight_func(C) * p.w), p0[1])
                 tri = weight_func(c) / A * U
                 delta = min(tri, config.epsilon)
-                o = (tri - delta) / 2
-                points = [p0, p1, (x + o + delta, y), (x + o, y)]
-                # print(points)
-                ax.add_patch(patches.Polygon(points, fill=True, color=c.color()))
-                c.set_ll_width(x + o, y, delta)
+                offset = (tri - delta) / 2
+
+                neighbors = [p.color_node]
+                if previous_neighbor:
+                    neighbors.append(previous_neighbor)
+
+                points = [p0, p1, (x + offset + delta, y), (x + offset, y)]
+                c.set_color_node(ColorNode(c.node, neighbors))
+                ax.add_patch(
+                    patches.Polygon(points, fill=True, color=c.color_node.get_color())
+                )
+                c.set_ll_width(x + offset, y, delta)
                 x = x + tri + gamma_d
             p0, C2, n = p1, c.children, len(c.children)
             c.sticky = n == 0
@@ -271,6 +271,7 @@ def _SRIP2_r(
                 P2, g2 = P2 + [c], g2 + c.w
             if not c.sticky:
                 P2, m2, A2, w2 = P2 + [c], m2 + n, A2 + weight_func(C2), w2 + tri
+            previous_neighbor = c.color_node
     if m2 > 0:
         _SRIP2_r(
             d + 1,

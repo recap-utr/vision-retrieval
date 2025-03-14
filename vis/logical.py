@@ -65,8 +65,8 @@ def render(
             neighbors = [n.color_node]
             if previous_neighbor:
                 neighbors.append(previous_neighbor)
-            elif color_node_map.get((n.x_pos - 1, y_level - 1)):
-                neighbors.append(color_node_map[(n.x_pos - 1, y_level - 1)])
+            elif color_node_map.get((n.x_pos - width, y_level - 1)):
+                neighbors.append(color_node_map[(n.x_pos - width, y_level - 1)])
 
             color_node = ColorNode(c, neighbors)
             node = NodeWrapper(c, n.x_pos + i * width, y_level - 1, color_node, width)

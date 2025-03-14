@@ -40,6 +40,7 @@ def _render(
     if method == RenderMethod.SRIP2:
         config = SRIP_Config()
         config.W = 10 / len(roots)
+        config.epsilon = config.W
         config.dpi = dpi
         config.normalize_height = normalize_height
         images = [SRIP2(root, graph, default_weight, config=config) for root in roots]
@@ -50,6 +51,7 @@ def _render(
     elif method == RenderMethod.SRIP1:
         config = SRIP_Config()
         config.W = 10 / len(roots)
+        config.epsilon = config.W
         config.dpi = dpi
         config.normalize_height = normalize_height
         images = [SRIP1(root, graph, config=config) for root in roots]
