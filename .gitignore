@@ -212,3 +212,4 @@ VisionRetrievalPretraining/
 *.ckpt
 *.jsonl
 vis/testgraphs/
+vis/favourites/
