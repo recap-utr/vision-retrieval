@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import messagebox
 import os
 import random
 from PIL import Image, ImageTk
@@ -8,6 +8,12 @@ import arguebuf as ab
 from render import render, RenderMethod
 from pathlib import Path
 import shutil
+import multiprocessing
+import queue
+import threading
+import time
+import signal
+import sys
 
 
 class ImageViewerApp:
@@ -22,6 +28,11 @@ class ImageViewerApp:
         self.graph_paths = []
         self.temp_dir = "visualized_graphs"
         self.favourites_dir = "favourites"
+        self.pregenerated_graphs = set()  # Track which graphs have been pre-generated
+        self.pregeneration_queue = queue.Queue()  # Queue for graphs to pre-generate
+        self.pregeneration_pool = None  # Will hold our process pool
+        self.pregeneration_active = False
+        self.buffer_size = 100  # Number of graphs to keep pre-generated
 
         # Create temp directory if it doesn't exist
         os.makedirs(self.temp_dir, exist_ok=True)
@@ -121,11 +132,20 @@ class ImageViewerApp:
         self.root.bind("<Left>", self.navigate_left)
         self.root.bind("<Right>", self.navigate_right)
 
+        # Set up proper window closing behavior
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+
+        # Start the pregeneration process
+        self.start_pregeneration()
+
         # Initialize with a random graph
         self.load_random_graphs()
 
         # set focus
         self.root.focus_force()
+
+        # Set up periodic check for pregeneration status
+        self.root.after(1000, self.check_pregeneration_status)
 
     def navigate_left(self, event):
         """Navigate to the previous graph"""
@@ -150,6 +170,16 @@ class ImageViewerApp:
         self.current_graph_index = len(self.graph_paths) - 1
         self.load_current_graph()
 
+        # Queue up more graphs for pregeneration
+        self.queue_more_graphs(files[1 : self.buffer_size + 1])
+
+    def queue_more_graphs(self, graph_paths):
+        """Add more graphs to the pregeneration queue"""
+        for path in graph_paths:
+            if path not in self.pregenerated_graphs:
+                self.pregeneration_queue.put(path)
+                self.pregenerated_graphs.add(path)
+
     def load_current_graph(self):
         """Load the current graph and its associated images"""
         if not self.graph_paths:
@@ -161,33 +191,33 @@ class ImageViewerApp:
         if not os.path.exists(
             os.path.join(self.temp_dir, f"graphviz_{graph_name}.png")
         ):
-            self.generate_graph_images()
+            self.generate_graph_images(current_path)
 
         self.load_images_for_current_graph()
 
         self.path_label.config(text=f"Original Graph Path: {current_path}")
 
-    def generate_graph_images(self):
-        current_path = self.graph_paths[self.current_graph_index]
-        print(current_path)
-        graph = ab.load.file(current_path)
-        graph_name = os.path.basename(current_path)
+    def generate_graph_images(self, graph_path):
+        """Generate images for a specific graph path"""
+        print(f"Generating images for {graph_path}")
+        graph = ab.load.file(graph_path)
+        graph_name = os.path.basename(graph_path)
         ab.render.graphviz(
             ab.dump.graphviz(graph),
             os.path.join(self.temp_dir, f"graphviz_{graph_name}.png"),
         )
         render(
-            current_path,
+            graph_path,
             Path(os.path.join(self.temp_dir, f"srip2_{graph_name}.png")),
             RenderMethod.SRIP2,
         )
         render(
-            current_path,
+            graph_path,
             Path(os.path.join(self.temp_dir, f"logical_{graph_name}.png")),
             RenderMethod.LOGICAL,
         )
         render(
-            current_path,
+            graph_path,
             Path(os.path.join(self.temp_dir, f"treemap_{graph_name}.png")),
             RenderMethod.TREEMAP,
         )
@@ -275,8 +305,163 @@ class ImageViewerApp:
 
         messagebox.showinfo("Success", f"Graph '{graph_name}' marked as favourite!")
 
+    def start_pregeneration(self):
+        """Start the background pregeneration process"""
+        if self.pregeneration_active:
+            return
+
+        self.pregeneration_active = True
+
+        # Initialize multiprocessing with 'spawn' method for better process termination
+        if sys.platform != "win32":  # Not needed on Windows as it defaults to 'spawn'
+            multiprocessing.set_start_method("spawn", force=True)
+
+        # Create a process pool
+        self.pregeneration_pool = multiprocessing.Pool(
+            processes=max(1, multiprocessing.cpu_count() - 1),
+            initializer=self.worker_init,
+        )
+
+        # Start a thread to manage the pregeneration queue
+        self.pregeneration_thread = threading.Thread(
+            target=self.pregeneration_manager, daemon=True
+        )
+        self.pregeneration_thread.start()
+
+    @staticmethod
+    def worker_init():
+        """Initialize worker processes to handle signals properly"""
+        # Set up signal handler for worker processes
+        signal.signal(signal.SIGINT, signal.SIG_IGN)
+
+    def pregeneration_manager(self):
+        """Manages the pregeneration of graphs in the background"""
+        while self.pregeneration_active:
+            try:
+                # Get a graph path from the queue (with timeout to check active flag)
+                try:
+                    graph_path = self.pregeneration_queue.get(timeout=0.5)
+                except queue.Empty:
+                    # If queue is empty, continue the loop to check active flag
+                    continue
+
+                # Check if the graph is already generated
+                graph_name = os.path.basename(graph_path)
+                if os.path.exists(
+                    os.path.join(self.temp_dir, f"graphviz_{graph_name}.png")
+                ):
+                    continue
+
+                # Skip if we're no longer active
+                if not self.pregeneration_active:
+                    break
+
+                # Submit the graph generation task to the process pool
+                self.pregeneration_pool.apply_async(
+                    self.pregenerate_graph_images, args=(graph_path, self.temp_dir)
+                )
+
+                # Add the graph to our list of available graphs
+                if graph_path not in self.graph_paths:
+                    self.graph_paths.append(graph_path)
+
+            except Exception as e:
+                print(f"Error in pregeneration manager: {e}")
+                if not self.pregeneration_active:
+                    break
+                time.sleep(1)  # Avoid tight loop in case of repeated errors
+
+    @staticmethod
+    def pregenerate_graph_images(graph_path, temp_dir):
+        """Static method to generate graph images in a separate process"""
+        try:
+            graph = ab.load.file(graph_path)
+            graph_name = os.path.basename(graph_path)
+
+            # Generate all the required images
+            ab.render.graphviz(
+                ab.dump.graphviz(graph),
+                os.path.join(temp_dir, f"graphviz_{graph_name}.png"),
+            )
+            render(
+                graph_path,
+                Path(os.path.join(temp_dir, f"srip2_{graph_name}.png")),
+                RenderMethod.SRIP2,
+            )
+            render(
+                graph_path,
+                Path(os.path.join(temp_dir, f"logical_{graph_name}.png")),
+                RenderMethod.LOGICAL,
+            )
+            render(
+                graph_path,
+                Path(os.path.join(temp_dir, f"treemap_{graph_name}.png")),
+                RenderMethod.TREEMAP,
+            )
+
+            print(f"Pre-generated images for {graph_name}")
+            return True
+        except Exception as e:
+            print(f"Error pre-generating images for {graph_path}: {e}")
+            return False
+
+    def check_pregeneration_status(self):
+        """Periodically check if we need to queue more graphs for pregeneration"""
+        if not self.pregeneration_active:
+            return
+
+        try:
+            # Check if we need to queue more graphs
+            base_path = "../../arguebase-public"
+            if self.pregeneration_queue.qsize() < 20:  # If queue is getting low
+                files = glob(os.path.join(base_path, "**/format=*/*.json"))
+                random.shuffle(files)
+
+                # Filter out graphs we've already processed
+                new_files = [f for f in files if f not in self.pregenerated_graphs]
+
+                # Queue up to buffer_size new graphs
+                self.queue_more_graphs(new_files[: self.buffer_size])
+        except Exception as e:
+            print(f"Error checking pregeneration status: {e}")
+
+        # Schedule the next check only if we're still active
+        if self.pregeneration_active:
+            self.root.after(5000, self.check_pregeneration_status)
+
+    def on_closing(self):
+        """Clean up resources when the application is closing"""
+        print("Application closing, terminating background processes...")
+
+        # Set flag to stop the pregeneration thread
+        self.pregeneration_active = False
+
+        # Terminate the process pool immediately
+        if self.pregeneration_pool:
+            try:
+                # Terminate all worker processes immediately
+                self.pregeneration_pool.terminate()
+
+                # Small timeout for cleanup (non-blocking)
+                self.pregeneration_pool.join()
+
+                print("Process pool terminated")
+            except Exception as e:
+                print(f"Error terminating process pool: {e}")
+
+        # Destroy the window immediately
+        self.root.destroy()
+
+        # Force exit if needed (as a last resort)
+        # This ensures we don't wait for any lingering processes
+        print("Application closed")
+
 
 if __name__ == "__main__":
+    # Set up proper signal handling for the main process
+    if sys.platform != "win32":  # Not needed on Windows
+        signal.signal(signal.SIGINT, signal.SIG_DFL)
+
     root = tk.Tk()
     app = ImageViewerApp(root)
     root.mainloop()
