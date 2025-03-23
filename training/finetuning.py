@@ -15,6 +15,7 @@ from datasets import load_dataset
 import wandb
 from transformers import AutoImageProcessor, AutoModel
 from lightning.pytorch.loggers import WandbLogger
+from pathlib import Path
 
 
 PROJECT = "VisionRetrievalFineTuning"
@@ -24,9 +25,9 @@ class SimCLR(L.LightningModule):
     def __init__(
         self,
         hidden_dim,
-        lr,
-        temperature,
-        weight_decay,
+        lr: float,
+        temperature: float,
+        weight_decay: float,
         basemodel: str,
         checkpoint: str,
         dataset: str,
@@ -36,9 +37,7 @@ class SimCLR(L.LightningModule):
     ):
         super().__init__()
         self.save_hyperparameters(ignore=["pretrained_model"])
-        assert self.hparams.temperature > 0.0, (
-            "The temperature must be a positive float!"
-        )
+        assert temperature > 0.0, "The temperature must be a positive float!"
         # Base model f(.)
         if pretrained_model is None:
             raise ValueError("Pretrained model must be provided!")
@@ -107,23 +106,28 @@ class SimCLR(L.LightningModule):
         self.info_nce_loss(batch, mode="val")
 
 
-def main(model, batch_size, latent_dim, epochs, checkpoint_path, dataset_name):
-    processor = AutoImageProcessor.from_pretrained(model)
+def main(
+    base_model: str,
+    batch_size: int,
+    latent_dim: int,
+    max_epochs: int,
+    save_path: Path,
+    pretrained_checkpoint: str,
+    dataset_name: str,
+    wandb_project: str = "",
+    num_workers: int = 30,
+):
+    processor = AutoImageProcessor.from_pretrained(base_model)
     vis = dataset_name.split("/")[-1]
-    # In this notebook, we use data loaders with heavier computational processing. It is recommended to use as many
-    # workers as possible in a data loader, which corresponds to the number of CPU cores
-    NUM_WORKERS = 30
 
-    # Setting the seed
     L.seed_everything(42)
 
-    # Ensure that all operations are deterministic on GPU (if used) for reproducibility
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
 
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print("Device:", device)
-    print("Number of workers:", NUM_WORKERS)
+    print("Number of workers:", num_workers)
 
     contrast_transforms = transforms.Compose(
         [
@@ -166,74 +170,70 @@ def main(model, batch_size, latent_dim, epochs, checkpoint_path, dataset_name):
         [torch.Tensor(x["pixel_values"]) for x in batch]
     )
 
-    wandb_logger = WandbLogger(project=PROJECT, log_model=True)
+    if wandb_project != "":
+        wandb_logger = WandbLogger(project=wandb_project, log_model=True)
 
-    def train_simclr(batch_size, max_epochs=500, **kwargs):
-        checkpoint_callback = ModelCheckpoint(
-            dirpath=f"../{PROJECT}/{vis}/checkpoints", save_top_k=2, monitor="val_loss"
-        )
-        trainer = L.Trainer(
-            default_root_dir=f"../{PROJECT}/{vis}",
-            accelerator="auto",
-            devices="auto",
-            strategy="auto",
-            max_epochs=epochs,
-            # precision="16-mixed",
-            callbacks=[
-                checkpoint_callback,
-                # GenerateCallback(get_train_images(8), every_n_epochs=10),
-                LearningRateMonitor("epoch"),
-                EarlyStopping(
-                    monitor="val_loss",
-                    patience=3,
-                    mode="min",
-                    min_delta=0.2,
-                    verbose=True,
-                ),
-            ],
-            logger=wandb_logger,
-        )
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=f"{save_path}/checkpoints", save_top_k=2, monitor="val_loss"
+    )
+    trainer = L.Trainer(
+        default_root_dir=f"{save_path}/logs",
+        accelerator="auto",
+        devices="auto",
+        strategy="auto",
+        max_epochs=max_epochs,
+        # precision="16-mixed",
+        callbacks=[
+            checkpoint_callback,
+            # GenerateCallback(get_train_images(8), every_n_epochs=10),
+            LearningRateMonitor("epoch"),
+            EarlyStopping(
+                monitor="val_loss",
+                patience=3,
+                mode="min",
+                min_delta=0.2,
+                verbose=True,
+            ),
+        ],
+    )
+    if wandb_project != "":
+        trainer.logger = wandb_logger
 
-        train_loader = data.DataLoader(
-            unlabeled_data,
-            batch_size=batch_size,
-            shuffle=True,
-            drop_last=True,
-            pin_memory=True,
-            num_workers=30,
-            collate_fn=coalate_fn,
-        )
-        val_loader = data.DataLoader(
-            train_data_contrast,
-            batch_size=batch_size,
-            shuffle=False,
-            drop_last=False,
-            pin_memory=True,
-            num_workers=30,
-            collate_fn=coalate_fn,
-        )
-        L.seed_everything(42)  # To be reproducible
-        pretrained_model = AutoModel.from_pretrained(checkpoint_path)
-        model = SimCLR(
-            max_epochs=max_epochs,
-            pretrained_model=pretrained_model,
-            latent_dim=latent_dim,
-            **kwargs,
-        )
-        trainer.fit(model, train_loader, val_loader)
-
-    train_simclr(
+    train_loader = data.DataLoader(
+        unlabeled_data,
         batch_size=batch_size,
+        shuffle=True,
+        drop_last=True,
+        pin_memory=True,
+        num_workers=num_workers,
+        collate_fn=coalate_fn,
+    )
+    val_loader = data.DataLoader(
+        train_data_contrast,
+        batch_size=batch_size,
+        shuffle=False,
+        drop_last=False,
+        pin_memory=True,
+        num_workers=num_workers,
+        collate_fn=coalate_fn,
+    )
+    pretrained_model = AutoModel.from_pretrained(pretrained_checkpoint)
+    model = SimCLR(
+        max_epochs=max_epochs,
+        pretrained_model=pretrained_model,
+        latent_dim=latent_dim,
         hidden_dim=64,
         lr=5e-4,
         temperature=0.07,
         weight_decay=1e-4,
-        max_epochs=epochs,
-        basemodel=model,
-        checkpoint=checkpoint_path,
+        basemodel=base_model,
+        checkpoint=pretrained_checkpoint,
         dataset=dataset_name,
     )
+    trainer.fit(model, train_loader, val_loader)
+    model.model.save_pretrained(f"{save_path}/model")
     wandb.finish()
+    return model
 
 
 if __name__ == "__main__":

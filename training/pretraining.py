@@ -1,4 +1,4 @@
-from datasets import load_dataset
+from datasets import load_dataset, IterableDataset
 from transformers import AutoImageProcessor, AutoModel
 import lightning as L
 import torch
@@ -14,13 +14,14 @@ from lightning.pytorch.callbacks import (
 from lightning.pytorch.loggers import WandbLogger
 import wandb
 
-PROJECT = "VisionRetrievalPretraining"
 
 
 # Tensorboard extension (for visualization purposes later)
-def main(dataset_name, basemodel, latent_dim, batch_size, epochs):
+def main(dataset_name, basemodel, latent_dim, batch_size, epochs, save_path, wandb_project="", num_workers=30):
     vis = dataset_name.split("/")[-1]
-    wandb_logger = WandbLogger(project=PROJECT, log_model=True)
+    if wandb_project != "":
+        wandb.init(project=wandb_project)
+        wandb_logger = WandbLogger(project=wandb_project, log_model=True)
     # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
     # Path to the folder where the pretrained models are saved
     # Setting the seed
@@ -39,7 +40,10 @@ def main(dataset_name, basemodel, latent_dim, batch_size, epochs):
 
     process = lambda x: processor(x, return_tensors="pt")["pixel_values"].squeeze()
     ds = load_dataset(dataset_name)
+    if isinstance(ds, IterableDataset):
+        raise ValueError("Only non-iterable datasets are supported")
     ds.set_transform(apply_transforms)
+
     # generate test split if not present
     if "test" not in ds:
         ds = ds["train"].train_test_split(test_size=0.1)
@@ -52,55 +56,54 @@ def main(dataset_name, basemodel, latent_dim, batch_size, epochs):
         batch_size=batch_size,
         drop_last=True,
         pin_memory=True,
-        num_workers=30,
+        num_workers=num_workers,
         collate_fn=col,
     )
     test_loader = data.DataLoader(
         test_set, batch_size=batch_size, drop_last=False, num_workers=30, collate_fn=col
     )
 
-    def train_vit(latent_dim):
-        # Create a PyTorch Lightning trainer with the generation callback
-        checkpoint_callback = ModelCheckpoint(
-            dirpath=f"../{PROJECT}/{vis}/checkpoints", save_top_k=2, monitor="val_loss"
-        )
-        trainer = L.Trainer(
-            default_root_dir=f"../{PROJECT}/{vis}",
-            accelerator="auto",
-            devices="auto",
-            strategy="auto",
-            max_epochs=epochs,
-            # precision="16-mixed",
-            callbacks=[
-                checkpoint_callback,
-                # GenerateCallback(get_train_images(8), every_n_epochs=10),
-                LearningRateMonitor("epoch"),
-                EarlyStopping(
-                    monitor="val_loss",
-                    patience=3,
-                    mode="min",
-                    min_delta=0.5,
-                    verbose=True,
-                ),
-            ],
-            logger=wandb_logger,
-        )
+    # Create a PyTorch Lightning trainer with the generation callback
+    checkpoint_callback = ModelCheckpoint(
+        dirpath=f"{save_path}/checkpoints", save_top_k=2, monitor="val_loss"
+    )
+    trainer = L.Trainer(
+        default_root_dir=f"{save_path}/logs",
+        accelerator="auto",
+        devices="auto",
+        strategy="auto",
+        max_epochs=epochs,
+        # precision="16-mixed",
+        callbacks=[
+            checkpoint_callback,
+            # GenerateCallback(get_train_images(8), every_n_epochs=10),
+            LearningRateMonitor("epoch"),
+            EarlyStopping(
+                monitor="val_loss",
+                patience=3,
+                mode="min",
+                min_delta=0.5,
+                verbose=True,
+            ),
+        ],
+    )
+    if wandb_project != "":
+        trainer.logger = wandb_logger
 
-        model = Autoencoder(
-            base_channel_size=256,
-            latent_dim=latent_dim,
-            model=basemodel,
-            dataset=dataset_name,
-            batch_size=batch_size,
-        )
-        trainer.fit(model, train_loader, test_loader)
-        # Test best model on validation and test set
-        test_result = trainer.test(model, dataloaders=test_loader, verbose=False)
-        result = {"test": test_result}
-        return model, result
-
-    basemodel, _ = train_vit(latent_dim)
+    model = Autoencoder(
+        base_channel_size=256,
+        latent_dim=latent_dim,
+        model=basemodel,
+        dataset=dataset_name,
+        batch_size=batch_size,
+    )
+    trainer.fit(model, train_loader, test_loader)
+    # Test best model on validation and test set
+    test_result = trainer.test(model, dataloaders=test_loader, verbose=False)
+    result = {"test": test_result}
+    model.encoder.save_pretrained(save_path)
     wandb.finish()
+    return model
 
 
 class Encoder(nn.Module):
@@ -109,7 +112,7 @@ class Encoder(nn.Module):
         num_input_channels: int,
         base_channel_size: int,
         latent_dim: int,
-        act_fn: object = nn.GELU,
+        act_fn: torch.nn.Module = nn.GELU(),
     ):
         """Encoder.
 
