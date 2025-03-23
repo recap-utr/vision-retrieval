@@ -213,3 +213,4 @@ VisionRetrievalPretraining/
 *.jsonl
 vis/testgraphs/
 vis/favourites/
+testgraphs/
