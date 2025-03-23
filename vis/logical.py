@@ -44,7 +44,6 @@ def render(
     dpi: int = 50,
     normalize_height: bool = False,
 ) -> Image.Image:
-    # TODO: make option with normalized height
     q = queue.Queue()
     q.put(NodeWrapper(root, 0, -1, ColorNode(root, []), outer_width))
     nodes = []
