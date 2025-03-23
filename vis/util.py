@@ -60,7 +60,6 @@ def fig2img(fig):
 
 
 class ColorNode:
-
     node_type: Literal["inode", "attack", "support"]
 
     def __init__(self, node: ab.AbstractNode, neighbors: list["ColorNode"]) -> None:
@@ -98,5 +97,5 @@ def get_next_color(neighbors: list[int]) -> int:
         else:
             return 100
     if len(neighbors) == 2:
-        return 532 - sum(neighbors)
+        return min(255, 532 - sum(neighbors))
     raise ValueError("Too many neighbors")

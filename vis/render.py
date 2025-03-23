@@ -18,7 +18,7 @@ class RenderMethod(str, Enum):
 
 
 @app.command()
-def render(
+def render_command(
     graph_path: Path,
     output_path: Path,
     method: RenderMethod = RenderMethod.SRIP2,
@@ -26,10 +26,10 @@ def render(
     normalize_height: bool = False,
 ) -> None:
     graph = ab.load.file(graph_path)
-    _render(graph, output_path, normalize_height, method, dpi)
+    render(graph, output_path, normalize_height, method, dpi)
 
 
-def _render(
+def render(
     graph: ab.Graph,
     output_path: Path,
     normalize_height: bool,
