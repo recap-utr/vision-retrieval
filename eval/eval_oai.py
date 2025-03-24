@@ -229,3 +229,6 @@ def append_images(image) -> dict:
             }
         ],
     }
+
+if __name__ == "__main__":
+    app()
