@@ -16,9 +16,7 @@ import wandb
 
 
 
-# Tensorboard extension (for visualization purposes later)
 def main(dataset_name, basemodel, latent_dim, batch_size, epochs, save_path, wandb_project="", num_workers=30):
-    vis = dataset_name.split("/")[-1]
     if wandb_project != "":
         wandb.init(project=wandb_project)
         wandb_logger = WandbLogger(project=wandb_project, log_model=True)
@@ -29,7 +27,6 @@ def main(dataset_name, basemodel, latent_dim, batch_size, epochs, save_path, wan
     # Ensure that all operations are deterministic on GPU (if used) for reproducibility
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
-    # Transformations applied on each image => only make them a tensor
     processor = AutoImageProcessor.from_pretrained(basemodel)
 
     def apply_transforms(examples):
@@ -50,7 +47,6 @@ def main(dataset_name, basemodel, latent_dim, batch_size, epochs, save_path, wan
     train_set = ds["train"]
     test_set = ds["test"]
     col = lambda batch: torch.stack([example["pixel_values"] for example in batch])
-    # We define a set of data loaders that we can use for various purposes later.
     train_loader = data.DataLoader(
         train_set,
         batch_size=batch_size,
@@ -63,7 +59,6 @@ def main(dataset_name, basemodel, latent_dim, batch_size, epochs, save_path, wan
         test_set, batch_size=batch_size, drop_last=False, num_workers=30, collate_fn=col
     )
 
-    # Create a PyTorch Lightning trainer with the generation callback
     checkpoint_callback = ModelCheckpoint(
         dirpath=f"{save_path}/checkpoints", save_top_k=2, monitor="val_loss"
     )
@@ -73,10 +68,8 @@ def main(dataset_name, basemodel, latent_dim, batch_size, epochs, save_path, wan
         devices="auto",
         strategy="auto",
         max_epochs=epochs,
-        # precision="16-mixed",
         callbacks=[
             checkpoint_callback,
-            # GenerateCallback(get_train_images(8), every_n_epochs=10),
             LearningRateMonitor("epoch"),
             EarlyStopping(
                 monitor="val_loss",
@@ -99,8 +92,7 @@ def main(dataset_name, basemodel, latent_dim, batch_size, epochs, save_path, wan
     )
     trainer.fit(model, train_loader, test_loader)
     # Test best model on validation and test set
-    test_result = trainer.test(model, dataloaders=test_loader, verbose=False)
-    result = {"test": test_result}
+    trainer.test(model, dataloaders=test_loader, verbose=False)
     model.encoder.save_pretrained(save_path)
     wandb.finish()
     return model
@@ -208,7 +200,6 @@ class Autoencoder(L.LightningModule):
 
     def configure_optimizers(self):
         optimizer = optim.AdamW(self.parameters(), lr=1e-3)
-        # Using a scheduler is optional but can be helpful.
         # The scheduler reduces the LR if the validation performance hasn't improved for the last N epochs
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(
             optimizer, mode="min", factor=0.2, patience=20, min_lr=5e-5

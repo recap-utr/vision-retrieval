@@ -16,28 +16,29 @@ def pretraining(
             help="A HuggingFace dataset. Can be a local path or a dataset hub path"
         ),
     ],
-    save_path: Path,
-    base_model: Annotated[
-        str,
-        typer.Argument(
-            help="The base model to use for pretraining, e.g. microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft'"
-        ),
-    ],
-    latent_dim: Annotated[
-        int,
-        typer.Argument(
-            help="Dimensionality of latent representation of the base model, e.g. 1536"
-        ),
-    ],
-    batch_size: int,
     max_epochs: Annotated[
         int,
         typer.Argument(
             help="Maximum number of epochs to train for. The model will be trained for at most this many epochs, but may stop early."
         ),
     ],
+    save_path: Path,
+    base_model: Annotated[
+        str,
+        typer.Option(
+            help="The base model to use for pretraining'"
+        ),
+    ] = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft",
+    latent_dim: Annotated[
+        int,
+        typer.Option(
+            help="Dimensionality of latent representation of the base model, e.g. 1536"
+        ),
+    ] = 1536,
+    batch_size: int = 32,
+    
     wandb_project_name: Annotated[
-        str, typer.Argument(help="Leave blank if no wandb logging is needed")
+        str, typer.Option(help="Leave blank if no wandb logging is needed")
     ] = "",
     num_workers: int = 30,
 ):
@@ -62,22 +63,10 @@ def finetuning(
         ),
     ],
     save_path: Path,
-    base_model: Annotated[
-        str,
-        typer.Argument(
-            help="The base model to use for pretraining, e.g. microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft'"
-        ),
-    ],
     pretrained_checkpoint: Annotated[
         str,
         typer.Argument(
             help="The pretrained model to use for finetuning. Can be a local path or a model hub path"
-        ),
-    ],
-    latent_dim: Annotated[
-        int,
-        typer.Argument(
-            help="Dimensionality of latent representation of the base model, e.g. 1536"
         ),
     ],
     batch_size: int,
@@ -87,8 +76,20 @@ def finetuning(
             help="Maximum number of epochs to train for. The model will be trained for at most this many epochs, but may stop early."
         ),
     ],
+    base_model: Annotated[
+        str,
+        typer.Argument(
+            help="The base model to use for pretraining, e.g. microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft'"
+        ),
+    ] = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft",
+    latent_dim: Annotated[
+        int,
+        typer.Argument(
+            help="Dimensionality of latent representation of the base model, e.g. 1536"
+        ),
+    ] = 1536,
     wandb_project_name: Annotated[
-        str, typer.Argument(help="Leave blank if no wandb logging is needed")
+        str, typer.Option(help="Leave blank if no wandb logging is needed")
     ] = "",
     num_workers: int = 30,
 ):
