@@ -74,7 +74,7 @@ class Evaluation:
         }
         if self.times:
             print(
-                f"Processed {len(similiarities)} candidates (similarities) in {time()-start} seconds"
+                f"Processed {len(similiarities)} candidates (similarities) in {time() - start} seconds"
             )
         return similiarities
 

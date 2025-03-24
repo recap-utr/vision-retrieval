@@ -12,11 +12,17 @@ import statistics
 from tqdm import tqdm
 import copy
 import os
-import time
+from time import time
 import typer
 from typing_extensions import Annotated
 from enum import Enum
 from pathlib import Path
+from model import ImageEmbeddingGraph
+from new_evaluation import Evaluation
+from glob import glob
+from typing import Callable, List
+import torch
+from transformers import AutoModel, AutoImageProcessor
 
 app = typer.Typer()
 
@@ -54,7 +60,6 @@ def eval_oai(
     mac_results_path: Path,
     output_path: Path,
 ):
-
     ranking_path = output_path / "ranking.json"
     results_path = output_path / "results.json"
 
@@ -214,7 +219,11 @@ def build_mac_results(eval_json_path: str) -> dict[str, list[str]]:
 
 def build_ideal_mac_results(eval_json_path: Path) -> dict[str, list[str]]:
     with open(eval_json_path, "r") as f:
-        return json.load(f)
+        res = {}
+        data = json.load(f)
+        for k, v in data.items():
+            res[k] = [name.split("/")[-1] for name in v]
+        return res
 
 
 def append_images(image) -> dict:
@@ -229,6 +238,129 @@ def append_images(image) -> dict:
             }
         ],
     }
+
+
+def standard_file_name(path: str) -> str:
+    return "/".join(path.split("/")[-2:]).split(".")[0].lower()
+
+
+def extract_query_name(path: str) -> str:
+    return path.split("/")[-1].split(".")[0].lower()
+
+
+def build_ground_truth(query_path: str | Path) -> dict:
+    with open(query_path, "r") as f:
+        data = json.load(f)
+    return {
+        k.split("/")[-1]: v
+        for k, v in data["userdata"]["cbrEvaluations"][0]["ranking"].items()
+    }
+
+
+def embedding_func(model_path: Path, base_model: str):
+    model = AutoModel.from_pretrained(model_path)
+    model.eval()
+    processor = AutoImageProcessor.from_pretrained(base_model)
+
+    def func(image: Image.Image) -> torch.Tensor:
+        with torch.no_grad():
+            inputs = processor(image, return_tensors="pt")
+            outputs = model(**inputs)
+            outputs = outputs.pooler_output
+            return outputs
+
+    return func
+
+
+def get_image_path(images_path: Path, q: str) -> Path:
+    return images_path / (q.split(".")[0] + ".png")
+
+
+def _run_torch_eval(
+    queries_path: Path,
+    casebase_argument_graphs_path: Path,
+    mac_results_path: Path,
+    embedding_func: Callable[..., torch.Tensor],
+) -> dict:
+    query_files = [f for f in os.listdir(queries_path) if f.endswith(".json")]
+    queries = {
+        extract_query_name(q): ImageEmbeddingGraph(
+            queries_path / q,
+            get_image_path(queries_path, q),
+            embedding_func,
+            name=extract_query_name(q),
+        )
+        for q in tqdm(query_files)
+    }
+    print(f"Processed {len(queries)} queries")
+    ground_truths = {k: build_ground_truth(q.graph_path) for k, q in queries.items()}
+    # mac_results = build_mac_results(eval_json_path) # for real mac results
+    mac_results = build_ideal_mac_results(mac_results_path)
+    print("Processed ground truths and mac_results")
+    casebase_files = [
+        f for f in os.listdir(casebase_argument_graphs_path) if f.endswith(".json")
+    ]
+    print("Processing casebase...")
+    start = time()
+    casebase = {
+        standard_file_name(q): ImageEmbeddingGraph(
+            casebase_argument_graphs_path / q,
+            get_image_path(casebase_argument_graphs_path, q),
+            embedding_func,
+            name=standard_file_name(q),
+        )
+        for q in tqdm(casebase_files)
+    }
+    duration = time() - start
+    print(f"Processed {len(casebase)} casebase files in {duration} seconds")
+    print("Starting eval...")
+    ev = Evaluation(
+        casebase, ground_truths, mac_results, list(queries.values()), times=False
+    )
+    res = ev.as_dict()
+    res["embedding_time"] = duration
+    return res
+
+
+@app.command()
+def eval_torch(
+    models: List[Path],
+    queries_path: Annotated[
+        Path,
+        typer.Argument(
+            help="The folder which contains the query argument graphs. Expected to contain a 'simple' and a 'complex' subdirectory which contain the queries of the respective data sets in arguebuf-compatible JSON files and the corresponding images with the same name."
+        ),
+    ],
+    casebase_arguments_path: Annotated[
+        Path,
+        typer.Argument(
+            help="This directory should include all casebase argument graphs in an arguebuf-compatible JSON format, e.g. JSON and the corresponding images with the same name"
+        ),
+    ],
+    mac_results_path: Path,
+    output_path: Path,
+    base_model: str = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft",
+    num_runs: int = 1,
+):
+    res = {}
+    for run in range(num_runs):
+        print(f"Starting run {run}/{num_runs}...")
+        for model in models:
+            print(f"Evaluating {model}...")
+            embedd = embedding_func(model, base_model)
+            results = _run_torch_eval(
+                queries_path,
+                casebase_arguments_path,
+                mac_results_path,
+                embedd,
+            )
+            res[model.stem] = results
+            with open(
+                output_path,
+                "w",
+            ) as f:
+                json.dump(res, f)
+
 
 if __name__ == "__main__":
     app()
