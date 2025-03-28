@@ -194,7 +194,6 @@ pretraining/data/
 *.gv
 *.jpg
 pretrained_model/
-*.lock
 data/cifar-10-batches-py/
 tensorboard/
 .ipynb_checkpoints/
@@ -214,3 +213,6 @@ VisionRetrievalPretraining/
 vis/testgraphs/
 vis/favourites/
 testgraphs/
+
+*.lock
+!/*.lock
