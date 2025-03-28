@@ -6,7 +6,6 @@ from util import fig2img, ColorNode
 
 
 class Node:
-
     children: list["Node"] = []
     neighbors: list[ColorNode] = []
     node: ab.AbstractNode
@@ -38,7 +37,6 @@ class Node:
 
 
 class Rectangle:
-
     def __init__(self, x, y, width, height, color):
         self.x = x
         self.y = y

@@ -18,4 +18,3 @@ for t in ("simple", "complex"):
         graph_name = Path(graph).stem
         graph = ab.load.file(graph)
         render(graph, Path(f"{output_path}/{graph_name}.png"), normalize_graph=False)
-

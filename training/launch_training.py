@@ -25,9 +25,7 @@ def pretraining(
     save_path: Path,
     base_model: Annotated[
         str,
-        typer.Option(
-            help="The base model to use for pretraining'"
-        ),
+        typer.Option(help="The base model to use for pretraining'"),
     ] = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft",
     latent_dim: Annotated[
         int,
@@ -36,7 +34,6 @@ def pretraining(
         ),
     ] = 1536,
     batch_size: int = 32,
-    
     wandb_project_name: Annotated[
         str, typer.Option(help="Leave blank if no wandb logging is needed")
     ] = "",

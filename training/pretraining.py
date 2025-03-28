@@ -15,8 +15,16 @@ from lightning.pytorch.loggers import WandbLogger
 import wandb
 
 
-
-def main(dataset_name, basemodel, latent_dim, batch_size, epochs, save_path, wandb_project="", num_workers=30):
+def main(
+    dataset_name,
+    basemodel,
+    latent_dim,
+    batch_size,
+    epochs,
+    save_path,
+    wandb_project="",
+    num_workers=30,
+):
     if wandb_project != "":
         wandb.init(project=wandb_project)
         wandb_logger = WandbLogger(project=wandb_project, log_model=True)

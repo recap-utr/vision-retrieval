@@ -3,6 +3,7 @@ import statistics
 
 # from https://github.com/wi2trier/cbrkit/blob/main/cbrkit/eval/_common.py
 
+
 def correctness_completeness(
     qrels: Mapping[str, Mapping[str, int]],
     run: Mapping[str, Mapping[str, float]],
