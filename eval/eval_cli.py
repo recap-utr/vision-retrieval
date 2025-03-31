@@ -6,6 +6,7 @@ import base64
 import io
 from dotenv import load_dotenv
 from openai import OpenAI
+from openai.types.completion_usage import CompletionUsage
 from correctness_completeness import _correctness_completeness_single
 from ranx import Run, Qrels, evaluate
 import statistics
@@ -20,7 +21,7 @@ from pathlib import Path
 from model import ImageEmbeddingGraph
 from new_evaluation import Evaluation
 from glob import glob
-from typing import Callable, List
+from typing import Callable, List, cast
 import torch
 from transformers import AutoModel, AutoImageProcessor
 
@@ -140,9 +141,12 @@ def eval_oai(
             )
             request_durations.append(time.time() - request_start)
             answer = completion.choices[0].message.content
-            sum_tokens += completion.usage.total_tokens
+            usage = completion.usage
+            usage = cast(CompletionUsage, usage)
+            sum_tokens += usage.total_tokens
         try:
             keys = [key.split("/")[-1] for key in mac_results[query_name]]
+            answer = cast(str, answer)
             order = [int(i) for i in answer.split(",")]
             # assert len(set(order)) == len(
             #     reference_rankings
@@ -178,7 +182,9 @@ def eval_oai(
         ["ndcg_burges", "ndcg", "map", "f1", "recall", "precision"],
         return_mean=False,
     )
-    results = as_dict(query_names, copy.deepcopy(run.mean_scores), qrels, run, None)
+    results = results_add_correctness_completeness(
+        query_names, copy.deepcopy(run.mean_scores), qrels, run, None
+    )
     results["sum_tokens"] = sum_tokens
     results["request_duration"] = sum(request_durations)
     with open(results_path, "w") as f:
@@ -187,7 +193,13 @@ def eval_oai(
     print(f"Evaluation duration: {time.time() - start}")
 
 
-def as_dict(queries, results, qrels, run, k):
+def results_add_correctness_completeness(
+    queries: list[str],
+    results: dict[str, float],
+    qrels: dict[str, dict[str, int]],
+    run: Run,
+    k: int | None,
+):
     correctness, completeness = [], []
     for queryname in queries:
         corr, comp = _correctness_completeness_single(
@@ -226,15 +238,17 @@ def build_ideal_mac_results(eval_json_path: Path) -> dict[str, list[str]]:
         return res
 
 
-def append_images(image) -> dict:
+def append_images(image_path: str) -> dict:
     # mac phase has this prefix, eval folder structure does not
-    image = image.replace("microtexts/", "")
+    image_path = image_path.replace("microtexts/", "")
     return {
         "role": "user",
         "content": [
             {
                 "type": "image_url",
-                "image_url": {"url": image_to_base64(Image.open(image).convert("RGB"))},
+                "image_url": {
+                    "url": image_to_base64(Image.open(image_path).convert("RGB"))
+                },
             }
         ],
     }

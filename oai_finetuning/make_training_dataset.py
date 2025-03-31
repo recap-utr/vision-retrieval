@@ -1,5 +1,3 @@
-IMG_PLACEHOLDER = "data:image/png;base64,"
-
 import base64
 import jsonlines
 import random
@@ -12,11 +10,14 @@ import shutil
 import typer
 from pathlib import Path
 from typing_extensions import Annotated
+from PIL import Image
+
+IMG_PLACEHOLDER = "data:image/png;base64,"
 
 app = typer.Typer()
 
 
-def image_to_base64(image) -> str:
+def image_to_base64(image: Image.Image) -> str:
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
     return IMG_PLACEHOLDER + base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -32,7 +33,7 @@ contrast_transforms = transforms.Compose(
 )
 
 
-def create_contrastive_views(image_path, images_per_sample):
+def create_contrastive_views(image_path: str, images_per_sample: int):
     original_image = Image.open(image_path).convert("RGB")
     transform = contrast_transforms
 

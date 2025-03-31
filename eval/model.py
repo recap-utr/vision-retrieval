@@ -24,7 +24,11 @@ class ImageEmbeddingGraph(ImageGraph):
     ):
         self.graph = ab.load.file(graph_path)
         self.image = Image.open(image_path).convert("RGB")
-        self.name = graph_path.stem
+        if name is not None:
+            self.name = name
+        else:
+            self.name = graph_path.stem
         self.graph_path = graph_path
         self.image_path = image_path
-        self.embedding = embedding_func(self.image)
+        if embedding_func is not None:
+            self.embedding = embedding_func(self.image)

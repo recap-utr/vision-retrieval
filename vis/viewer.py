@@ -14,6 +14,11 @@ import threading
 import time
 import signal
 import sys
+from typing import cast
+
+"""This script provides a GUI to inspect graphs and their visualizations.
+It allows users to navigate through graphs, view their visualizations,
+and mark graphs as favourites to find oddities."""
 
 
 class ImageViewerApp:
@@ -209,16 +214,19 @@ class ImageViewerApp:
         render(
             graph_path,
             Path(os.path.join(self.temp_dir, f"srip2_{graph_name}.png")),
+            True,
             RenderMethod.SRIP2,
         )
         render(
             graph_path,
             Path(os.path.join(self.temp_dir, f"logical_{graph_name}.png")),
+            True,
             RenderMethod.LOGICAL,
         )
         render(
             graph_path,
             Path(os.path.join(self.temp_dir, f"treemap_{graph_name}.png")),
+            True,
             RenderMethod.TREEMAP,
         )
 
@@ -386,16 +394,19 @@ class ImageViewerApp:
             render(
                 graph_path,
                 Path(os.path.join(temp_dir, f"srip2_{graph_name}.png")),
+                True,
                 RenderMethod.SRIP2,
             )
             render(
                 graph_path,
                 Path(os.path.join(temp_dir, f"logical_{graph_name}.png")),
+                True,
                 RenderMethod.LOGICAL,
             )
             render(
                 graph_path,
                 Path(os.path.join(temp_dir, f"treemap_{graph_name}.png")),
+                True,
                 RenderMethod.TREEMAP,
             )
 

@@ -3,17 +3,21 @@ import os
 from statistics import mean
 from collections import defaultdict
 from glob import glob
+from pathlib import Path
+import typer
+from eval_cli import Mode
+from typing import Annotated
 
-MODE = "simple"
+app = typer.Typer()
 
-
-def process_files(folder_path):
+@app.command()
+def process_files(input_folder: Annotated[Path, typer.Argument(help="This folder should contain one JSON eval file per model. The files should be named results_MODE_MODEL.json.")], mode: Mode):
     # Store all values in a nested dictionary
     all_values = defaultdict(lambda: defaultdict(list))
 
     # Process each JSON file
-    for filename in glob(os.path.join(folder_path, f"results_{MODE}_*.json")):
-        with open(os.path.join(folder_path, filename), "r") as f:
+    for filename in glob(os.path.join(input_folder, f"results_{mode}_*.json")):
+        with open(os.path.join(input_folder, filename), "r") as f:
             data = json.load(f)
 
             # For each model type (logical_ft_arg, logical_pt, etc.)
@@ -36,10 +40,10 @@ def process_files(folder_path):
                     print(f"Warning: Different values found for {model} - {metric}")
                 result[model][metric] = values[0]  # Take the first value
 
-    return result
+    print(create_latex_table(result))
 
 
-def create_latex_table(data):
+def create_latex_table(data: dict[str, dict[str, float]]):
     metrics = [
         "ndcg",
         "map",
@@ -73,17 +77,5 @@ def create_latex_table(data):
     return latex
 
 
-def main():
-    # Replace with your folder path
-    folder_path = "../data/eval_all/results/torch_models"
-
-    # Process all files
-    results = process_files(folder_path)
-
-    # Create and print LaTeX table
-    latex_table = create_latex_table(results)
-    print(latex_table)
-
-
 if __name__ == "__main__":
-    main()
+    app()

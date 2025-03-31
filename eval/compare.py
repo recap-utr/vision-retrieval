@@ -60,7 +60,7 @@ def compare_timing_files(data1, data2):
         axs[idx, 1].legend()
 
     plt.tight_layout()
-    plt.savefig("comparison.png")
+    plt.savefig("../data/comparison.png")
     plt.close()
 
 

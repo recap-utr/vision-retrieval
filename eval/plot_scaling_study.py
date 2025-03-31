@@ -2,6 +2,15 @@ import matplotlib.pyplot as plt
 import json
 import csv
 
+"""
+This script generates two plots for the paper's scaling study comparing the scaling
+ of the A* approach to the scaling of the vision-based approach when increasing the number of s-nodes in an argument graph.
+ It expects the following files to be present:
+1. ../data/retrieval_scaling/gpu_results.json
+2. ../data/retrieval_scaling/astar_results.csv
+They should be generated using the eval_cli / A* search.
+"""
+
 data = json.load(open("../data/retrieval_scaling/gpu_results.json"))
 visualization_times = data["visualization_times"]
 embedding_times = data["embedding_times"]

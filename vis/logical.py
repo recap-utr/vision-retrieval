@@ -25,7 +25,14 @@ support_colors = {
 
 
 class NodeWrapper:
-    def __init__(self, node, x_pos, y_pos, color_node: ColorNode, width: float = 10):
+    def __init__(
+        self,
+        node: ab.AbstractNode,
+        x_pos: float,
+        y_pos: float,
+        color_node: ColorNode,
+        width: float = 10,
+    ):
         self.node = node
         self.x_pos = x_pos
         self.y_pos = y_pos

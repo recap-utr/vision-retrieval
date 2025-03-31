@@ -20,7 +20,7 @@ class NormalizeHeight(str, Enum):
 app = typer.Typer()
 
 
-def generate_tree(max_depth, max_branching_degree, depth: int = 0):
+def generate_tree(max_depth: int, max_branching_degree: int, depth: int = 0):
     if depth >= max_depth:
         return {"id": str(uuid4()), "children": []}
     return {
