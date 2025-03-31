@@ -2,13 +2,13 @@ from uuid import uuid4
 from random import randint
 import arguebuf as ab
 from pathlib import Path
-from tqdm import tqdm
 from os import makedirs
 import random
 from render import render, RenderMethod
 import typer
 from multiprocessing import Pool
 from enum import Enum
+from time import time
 
 
 class NormalizeHeight(str, Enum):
@@ -26,7 +26,7 @@ def generate_tree(max_depth, max_branching_degree, depth: int = 0):
     return {
         "id": str(uuid4()),
         "children": [
-            generate_tree(max_depth, depth + 1)
+            generate_tree(max_depth, max_branching_degree, depth + 1)
             for _ in range(randint(0, max(2, max_branching_degree - depth)))
         ],
     }
@@ -57,8 +57,8 @@ def generate_random_graphs_command(
     save_path: Path,
     thread_count: int = 1,
     graphs_per_thread: int = 100_000,
-    max_depth: int = 9,
-    max_branching_degree: int = 7,
+    max_depth: int = 6,
+    max_branching_degree: int = 5,
     method: RenderMethod = RenderMethod.SRIP2,
     max_tree_roots: int = 1,
     normalize_height: NormalizeHeight = NormalizeHeight.RANDOM,
@@ -93,7 +93,12 @@ def _generation_workload(
     max_tree_roots: int = 1,
     normalize_height: NormalizeHeight = NormalizeHeight.RANDOM,
 ):
-    for i in tqdm(range(graphs_per_thread)):
+    start = time()
+    for i in range(graphs_per_thread):
+        if i % 1000 == 0:
+            print(
+                f"Thread {thread_num} is at {i} graphs after {time() - start} seconds"
+            )
         md = randint(1, max_depth)
         trees = []
         for _ in range(randint(1, max_tree_roots)):
@@ -103,7 +108,10 @@ def _generation_workload(
         norm_height = False if normalize_height == NormalizeHeight.FALSE else True
         if normalize_height == NormalizeHeight.RANDOM:
             norm_height = random.choice([True, False])
-        render(graph, path, method=method, normalize_height=norm_height)
+        try:
+            render(graph, path, method=method, normalize_height=norm_height)
+        except Exception as e:
+            print(f"Error rendering graph: {e}")
 
 
 if __name__ == "__main__":
