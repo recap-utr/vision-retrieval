@@ -2,7 +2,7 @@
 name = "vision-retrieval"
 version = "1.0.0"
 authors = [{ name = "Kilian Bartz" }, { name = "Mirko Lenz" }]
-requires-python = "<4.0,>=3.10"
+requires-python = ">=3.12.3,<3.13"
 dependencies = [
     "arguebuf[cli]>=2.5.2,<3.0.0",
     "datasets<3.0.0,>=2.19.1",
