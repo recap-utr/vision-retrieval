@@ -37,7 +37,14 @@ class Node:
 
 
 class Rectangle:
-    def __init__(self, x, y, width, height, color):
+    def __init__(
+        self,
+        x: float,
+        y: float,
+        width: float,
+        height: float,
+        color: tuple[float, float, float],
+    ):
         self.x = x
         self.y = y
         self.width = width
@@ -49,7 +56,7 @@ class Rectangle:
 
 
 def get_treemap_rects(
-    tree_root: Node, x, y, width, height, horizontal
+    tree_root: Node, x: float, y: float, width: float, height: float, horizontal: bool
 ) -> list[Rectangle]:
     parts = len(tree_root.children)
     # no children
@@ -135,7 +142,7 @@ def visualize_treemap(
     dpi: int = 100,
 ) -> Image.Image:
     graph = ab.load.file(graphpath)
-    return visualize_treemap_inmem(graph, root, height, width)
+    return visualize_treemap_inmem(graph, root, height, width, dpi=dpi)
 
 
 def visualize_treemap_inmem(

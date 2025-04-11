@@ -1,4 +1,10 @@
-from datasets import load_dataset, IterableDataset
+from datasets import (
+    load_dataset,
+    IterableDatasetDict,
+    IterableDataset,
+    Dataset,
+    DatasetDict,
+)
 from transformers import AutoImageProcessor, AutoModel
 import lightning as L
 import torch
@@ -13,17 +19,18 @@ from lightning.pytorch.callbacks import (
 )
 from lightning.pytorch.loggers import WandbLogger
 import wandb
+from typing import cast
 
 
 def main(
-    dataset_name,
-    basemodel,
-    latent_dim,
-    batch_size,
-    epochs,
-    save_path,
-    wandb_project="",
-    num_workers=30,
+    dataset_name: str,
+    basemodel: str,
+    latent_dim: int,
+    batch_size: int,
+    epochs: int,
+    save_path: str,
+    wandb_project: str = "",
+    num_workers: int = 30,
 ):
     if wandb_project != "":
         # wandb.init(project=wandb_project)
@@ -45,8 +52,9 @@ def main(
 
     process = lambda x: processor(x, return_tensors="pt")["pixel_values"].squeeze()
     ds = load_dataset(dataset_name)
-    if isinstance(ds, IterableDataset):
+    if isinstance(ds, IterableDatasetDict) or isinstance(ds, IterableDataset):
         raise ValueError("Only non-iterable datasets are supported")
+    ds = cast(DatasetDict, ds)
     ds.set_transform(apply_transforms)
 
     # generate test split if not present
@@ -55,6 +63,7 @@ def main(
     train_set = ds["train"]
     test_set = ds["test"]
     col = lambda batch: torch.stack([example["pixel_values"] for example in batch])
+
     train_loader = data.DataLoader(
         train_set,
         batch_size=batch_size,
@@ -175,8 +184,8 @@ class Autoencoder(L.LightningModule):
         latent_dim: int,
         dataset: str,
         model: str,
-        encoder_class: object = Encoder,
-        decoder_class: object = Decoder,
+        encoder_class: type[Encoder] = Encoder,
+        decoder_class: type[Decoder] = Decoder,
         num_input_channels: int = 3,
         width: int = 256,
         height: int = 256,

@@ -10,6 +10,9 @@ import shutil
 import typer
 from pathlib import Path
 from typing_extensions import Annotated
+from PIL import Image
+
+IMG_PLACEHOLDER = "data:image/png;base64,"
 
 IMG_PLACEHOLDER = "data:image/png;base64,"
 

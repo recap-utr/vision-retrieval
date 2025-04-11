@@ -1,6 +1,7 @@
 import arguebuf as ab
 from PIL import Image
 from typing import Literal
+from matplotlib.figure import Figure
 
 
 def normalize(graph: ab.Graph) -> None:
@@ -82,8 +83,9 @@ class ColorNode:
     def characteristic_color_value(self) -> int:
         return sum(self.color)
 
-    def get_color(self) -> tuple:
-        return tuple([c / 255 for c in self.color])
+    def get_color(self) -> tuple[float, float, float]:
+        r, g, b = self.color
+        return (r / 255, g / 255, b / 255)
         # return self.color
 
 

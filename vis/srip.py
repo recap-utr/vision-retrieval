@@ -1,4 +1,4 @@
-from typing import Literal, Callable
+from typing import Callable, cast
 import arguebuf as ab
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
@@ -6,19 +6,18 @@ from pathlib import Path
 from dataclasses import dataclass
 import math
 from util import layerize, find_heighest_root_node, fig2img, ColorNode
-import io
 from PIL import Image
 
 
 class Node:
-    children = []
-    x = 0
-    y = 0
-    w = 0
+    children: list["Node"] = []
+    x: float = 0
+    y: float = 0
+    w: float = 0
     node: ab.AbstractNode
-    sticky = False
-    span = 0
-    index = 0
+    sticky: bool = False
+    span: int = 0
+    index: int = 0
     color_node: ColorNode | None
 
     def set_ll_width(self, x: float, y: float, w: float):
@@ -26,7 +25,7 @@ class Node:
 
     def __init__(
         self,
-        label,
+        label: str,
         index: int,
         children: list,
         node: ab.AbstractNode,
@@ -193,9 +192,10 @@ def SRIP2(
     offset = (config.W - config.epsilon) / 2
 
     points = [(offset, 0), (config.W - offset, 0), (config.W - offset, h), (offset, h)]
-    ax.add_patch(
-        patches.Polygon(points, fill=True, color=r_node.color_node.get_color())
-    )
+    if isinstance(r_node.color_node, ColorNode):
+        ax.add_patch(
+            patches.Polygon(points, fill=True, color=r_node.color_node.get_color())
+        )
     r_node.set_ll_width(0, h, config.W)
     C = r_node.children
     if len(C) > 0:
@@ -254,15 +254,20 @@ def _SRIP2_r(
                 delta = min(tri, config.epsilon)
                 offset = (tri - delta) / 2
 
-                neighbors = [p.color_node]
+                p_color_node = p.color_node
+                p_color_node = cast(ColorNode, p_color_node)
+                neighbors = [p_color_node]
                 if previous_neighbor:
                     neighbors.append(previous_neighbor)
 
                 points = [p0, p1, (x + offset + delta, y), (x + offset, y)]
                 c.set_color_node(ColorNode(c.node, neighbors))
-                ax.add_patch(
-                    patches.Polygon(points, fill=True, color=c.color_node.get_color())
-                )
+                if isinstance(c.color_node, ColorNode):
+                    ax.add_patch(
+                        patches.Polygon(
+                            points, fill=True, color=c.color_node.get_color()
+                        )
+                    )
                 c.set_ll_width(x + offset, y, delta)
                 x = x + tri + gamma_d
             p0, C2, n = p1, c.children, len(c.children)
