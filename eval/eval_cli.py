@@ -132,13 +132,13 @@ def eval_oai(
                     "content": "The correct order of the retrieval images is:",
                 }
             )
-            request_start = time.time()
+            request_start = time()
             completion = client.chat.completions.create(
                 model=openai_model,
                 messages=prompt_messages,
                 temperature=0.0,
             )
-            request_durations.append(time.time() - request_start)
+            request_durations.append(time() - request_start)
             answer = completion.choices[0].message.content
             sum_tokens += completion.usage.total_tokens
         try:
@@ -170,7 +170,7 @@ def eval_oai(
     with open(ranking_path, "w") as f:
         json.dump(ranking_oai, f)
     print("Starting evaluation")
-    start = time.time()
+    start = time()
     run = Run(run)
     evaluate(
         Qrels(qrels),
@@ -184,7 +184,7 @@ def eval_oai(
     with open(results_path, "w") as f:
         json.dump(results, f)
     print(results)
-    print(f"Evaluation duration: {time.time() - start}")
+    print(f"Evaluation duration: {time() - start}")
 
 
 def as_dict(queries, results, qrels, run, k):
@@ -338,7 +338,7 @@ def eval_torch(
         ),
     ],
     mac_results_path: Path,
-    output_path: Path,
+    output_path: Annotated[Path, typer.Argument(help="Filename of the resulting JSON")],
     base_model: str = "microsoft/swinv2-large-patch4-window12to16-192to256-22kto1k-ft",
     num_runs: int = 1,
 ):
@@ -354,7 +354,7 @@ def eval_torch(
                 mac_results_path,
                 embedd,
             )
-            res[model.stem] = results
+            res[str(model.resolve())] = results
             with open(
                 output_path,
                 "w",

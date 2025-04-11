@@ -26,7 +26,7 @@ def main(
     num_workers=30,
 ):
     if wandb_project != "":
-        wandb.init(project=wandb_project)
+        # wandb.init(project=wandb_project)
         wandb_logger = WandbLogger(project=wandb_project, log_model=True)
     # Path to the folder where the datasets are/should be downloaded (e.g. CIFAR10)
     # Path to the folder where the pretrained models are saved
@@ -187,6 +187,7 @@ class Autoencoder(L.LightningModule):
         self.save_hyperparameters()
         # Creating encoder and decoder
         self.encoder = AutoModel.from_pretrained(model)
+        self.encoder.train()
         self.decoder = decoder_class(num_input_channels, 32, latent_dim)
         # Example input array needed for visualizing the graph of the network
         self.example_input_array = torch.zeros(2, num_input_channels, width, height)

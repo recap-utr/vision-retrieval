@@ -1,5 +1,3 @@
-IMG_PLACEHOLDER = "data:image/png;base64,"
-
 import base64
 import jsonlines
 import random
@@ -13,10 +11,12 @@ import typer
 from pathlib import Path
 from typing_extensions import Annotated
 
+IMG_PLACEHOLDER = "data:image/png;base64,"
+
 app = typer.Typer()
 
 
-def image_to_base64(image) -> str:
+def image_to_base64(image: Image.Image) -> str:
     buffered = io.BytesIO()
     image.save(buffered, format="PNG")
     return IMG_PLACEHOLDER + base64.b64encode(buffered.getvalue()).decode("utf-8")
@@ -32,15 +32,9 @@ contrast_transforms = transforms.Compose(
 )
 
 
-def create_contrastive_views(image_path, images_per_sample):
+def create_contrastive_views(image_path: Path | str, images_per_sample: int):
     original_image = Image.open(image_path).convert("RGB")
-    transform = contrast_transforms
-
-    contrastive_views = []
-    for _ in range(images_per_sample):
-        contrastive_views.append(transform(original_image))
-
-    return contrastive_views
+    return [contrast_transforms(original_image) for _ in range(images_per_sample)]
 
 
 def build_sample(images: list, same: bool, visualization: str):
@@ -86,7 +80,7 @@ def create_training_dataset(
             help="The name of the visualization. This will be included in the task prompt and might help the LLM to interpret the images."
         ),
     ] = "space reclaiming icicle chart",
-    num_samples: int = 500,
+    num_samples: Annotated[int, typer.Option(help="Number of positive samples = number of negative samples = number of total samples / 2")] = 500,
     images_per_sample: int = 2,
 ):
     if os.path.exists(output_folder):
@@ -109,7 +103,9 @@ def create_training_dataset(
         sample_dir = f"{output_folder}/different/{i}"
         os.makedirs(sample_dir, exist_ok=True)
         [shutil.copy2(image, sample_dir) for image in random_images]
-        random_images = [Image.open(f).convert("RGB") for f in random_images]
+        # also for the samples containing different images: use contrastive transform to prevent bias
+        # e.g. the model learning that cropped images belong to the same graph
+        random_images = [create_contrastive_views(f, 1)[0] for f in random_images]
 
         samples.append(
             build_sample(random_images, same=False, visualization=visualization)

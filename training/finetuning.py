@@ -187,13 +187,13 @@ def main(
             checkpoint_callback,
             # GenerateCallback(get_train_images(8), every_n_epochs=10),
             LearningRateMonitor("epoch"),
-            EarlyStopping(
-                monitor="val_loss",
-                patience=3,
-                mode="min",
-                min_delta=0.2,
-                verbose=True,
-            ),
+            # EarlyStopping(
+            #     monitor="val_loss",
+            #     patience=3,
+            #     mode="min",
+            #     min_delta=0.2,
+            #     verbose=True,
+            # ),
         ],
     )
     if wandb_project != "":
@@ -218,6 +218,7 @@ def main(
         collate_fn=coalate_fn,
     )
     pretrained_model = AutoModel.from_pretrained(pretrained_checkpoint)
+    pretrained_model.train()
     model = SimCLR(
         max_epochs=max_epochs,
         pretrained_model=pretrained_model,
