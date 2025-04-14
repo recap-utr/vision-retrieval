@@ -216,3 +216,5 @@ testgraphs/
 
 *.lock
 !/*.lock
+current_eval/
+new_models/
